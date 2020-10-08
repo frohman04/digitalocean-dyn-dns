@@ -1,0 +1,8 @@
+[package]
+name = "digitalocean-dyn-dns"
+version = "0.1.0"
+authors = ["Chris Lieb <chris.lieb@gmail.com>"]
+license = "MIT OR Apache-2.0"
+edition = "2018"
+
+[dependencies]
