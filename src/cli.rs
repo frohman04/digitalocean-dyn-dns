@@ -2,13 +2,14 @@ use std::net::IpAddr;
 
 use clap::{crate_name, crate_version};
 
+use crate::ip_retriever;
+
 #[derive(Debug)]
 pub struct Args {
     pub record: String,
     pub domain: String,
     pub token: String,
-    pub local: bool,
-    pub ip: Option<IpAddr>,
+    pub ip: IpAddr,
     pub rtype: String,
     pub ttl: u16,
     pub quiet: bool,
@@ -94,15 +95,31 @@ impl Args {
             )
             .get_matches();
 
+        let literal_ip = matches
+            .value_of("ip")
+            .map(|x| x.parse::<IpAddr>().expect("Unable to parse IP address"));
+        let local = matches.is_present("local");
+        let rtype = matches.value_of("rtype").unwrap().to_string();
+
+        let ip = if literal_ip.is_some() {
+            literal_ip.unwrap()
+        } else if local {
+            ip_retriever::get_local_ip().expect("Unable to retrieve local IP address")
+        } else {
+            let ip =
+                ip_retriever::get_external_ip().expect("Unable to retrieve external IP address");
+            if (ip.is_ipv4() && rtype != "A") || (ip.is_ipv6() && rtype != "AAAA") {
+                panic!("Expected Rtype {} but got {:?}", rtype, ip)
+            }
+            ip
+        };
+
         Args {
             record: matches.value_of("RECORD").unwrap().to_string(),
             domain: matches.value_of("DOMAIN").unwrap().to_string(),
             token: matches.value_of("token").unwrap().to_string(),
-            local: matches.is_present("local"),
-            ip: matches
-                .value_of("ip")
-                .map(|x| x.parse::<IpAddr>().expect("Unable to parse IP address")),
-            rtype: matches.value_of("rtype").unwrap().to_string(),
+            ip,
+            rtype,
             ttl: matches
                 .value_of("ttl")
                 .unwrap()
