@@ -113,6 +113,7 @@ impl Args {
             }
             ip
         };
+        info!("Will publish IP address: {:?}", ip);
 
         Args {
             record: matches.value_of("RECORD").unwrap().to_string(),
