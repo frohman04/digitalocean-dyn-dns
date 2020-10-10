@@ -12,5 +12,6 @@ mod ip_retriever;
 
 fn main() {
     let args = cli::Args::parse_args();
-    print!("{:?}", args)
+    let client = digitalocean::DigitalOceanClient::new(args.token);
+    print!("{:?}", client.domain_exists(args.domain))
 }
