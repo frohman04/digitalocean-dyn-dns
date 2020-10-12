@@ -60,10 +60,10 @@ fn main() {
                 "Will create new record {}.{} ({}) -> {}",
                 args.record, args.domain, args.rtype, args.ip
             );
-            client
+            let record = client
                 .create_record(&args.domain, &args.record, &args.rtype, &args.ip)
                 .expect("Unable to create new record");
-            info!("Successfully created new record!")
+            info!("Successfully created new record! ({})", record.id);
         }
     };
 }

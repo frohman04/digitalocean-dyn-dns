@@ -109,24 +109,50 @@ impl DigitalOceanClient {
                 data: value.to_string(),
             })
             .send()?
-            .json::<DomainRecord>()?;
-        if resp.data.parse::<IpAddr>()? == *value {
-            Ok(resp)
+            .json::<DomainRecordsModifyResp>()?;
+        if resp.domain_record.data.parse::<IpAddr>()? == *value {
+            Ok(resp.domain_record)
         } else {
             Err(Error::Update(
-                "New IP address not reflected in new DNS record",
+                "New IP address not reflected in updated DNS record",
             ))
         }
     }
 
+    /// Create a new DNS A/AAAA record to point to an IP address
     pub fn create_record(
         &self,
         domain: &String,
         record: &String,
         rtype: &String,
         value: &IpAddr,
-    ) -> Result<(), Error> {
-        unimplemented!()
+    ) -> Result<DomainRecord, Error> {
+        let url = format!("https://api.digitalocean.com/v2/domains/{}/records", domain);
+        let resp = ClientBuilder::new()
+            .build()
+            .unwrap()
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.token))
+            .json(&DomainRecordPostBody {
+                typ: rtype.clone(),
+                name: record.clone(),
+                data: value.to_string(),
+                priority: None,
+                port: None,
+                ttl: 60,
+                weight: None,
+                flags: None,
+                tag: None,
+            })
+            .send()?
+            .json::<DomainRecordsModifyResp>()?;
+        if resp.domain_record.data.parse::<IpAddr>()? == *value {
+            Ok(resp.domain_record)
+        } else {
+            Err(Error::Create(
+                "New IP address not reflected in new DNS record",
+            ))
+        }
     }
 }
 
@@ -135,6 +161,7 @@ pub enum Error<'a> {
     Request(reqwest::Error),
     IpParse(std::net::AddrParseError),
     Update(&'a str),
+    Create(&'a str),
 }
 
 impl<'a> From<reqwest::Error> for Error<'a> {
@@ -209,6 +236,11 @@ struct DomainRecordsResp {
 }
 
 #[derive(Deserialize, Debug)]
+struct DomainRecordsModifyResp {
+    domain_record: DomainRecord,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct DomainRecord {
     /// A unique identifier for each domain record.
     pub id: u32,
@@ -236,7 +268,33 @@ pub struct DomainRecord {
     pub tag: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
+pub struct DomainRecordPostBody {
+    /// The type of the DNS record. For example: A, CNAME, TXT, ...
+    #[serde(rename(serialize = "type"))]
+    pub typ: String,
+    /// The host name, alias, or service being defined by the record.
+    pub name: String,
+    /// Variable data depending on record type. For example, the "data" value for an A record would
+    /// be the IPv4 address to which the domain will be mapped. For a CAA record, it would contain
+    /// the domain name of the CA being granted permission to issue certificates.
+    pub data: String,
+    /// The priority for SRV and MX records.
+    pub priority: Option<u16>,
+    /// The port for SRV records.
+    pub port: Option<u16>,
+    /// This value is the time to live for the record, in seconds. This defines the time frame that
+    /// clients can cache queried information before a refresh should be requested
+    pub ttl: u16,
+    /// The weight for SRV records.
+    pub weight: Option<u16>,
+    /// An unsigned integer between 0-255 used for CAA records.
+    pub flags: Option<u8>,
+    /// The parameter tag for CAA records. Valid values are "issue", "issuewild", or "iodef"
+    pub tag: Option<String>,
+}
+
+#[derive(Serialize, Debug)]
 struct DomainRecordPutBody {
     pub data: String,
 }
