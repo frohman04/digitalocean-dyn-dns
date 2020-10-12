@@ -8,6 +8,9 @@ extern crate serde;
 extern crate serde_json;
 extern crate simplelog;
 
+#[cfg(test)]
+extern crate mockito;
+
 mod cli;
 mod digitalocean;
 mod ip_retriever;

@@ -2,20 +2,29 @@ use reqwest::blocking::ClientBuilder;
 use serde::export::Formatter;
 use serde::{Deserialize, Serialize};
 
+#[cfg(test)]
+use mockito;
+
 use std::net::IpAddr;
 
 pub struct DigitalOceanClient {
+    base_url: String,
     token: String,
 }
 
 impl DigitalOceanClient {
     pub fn new(token: String) -> DigitalOceanClient {
-        DigitalOceanClient { token }
+        #[cfg(not(test))]
+        let base_url = "https://api.digitalocean.com".to_string();
+        #[cfg(test)]
+        let base_url = mockito::server_url();
+
+        DigitalOceanClient { base_url, token }
     }
 
     /// Check to see if a domain is controlled by this DigitalOcean account
     pub fn get_domain(&self, domain: &String) -> Result<Option<Domain>, Error> {
-        let mut url = "https://api.digitalocean.com/v2/domains".to_string();
+        let mut url = format!("{}/v2/domains", self.base_url);
         let mut exit = false;
         let mut obj: Option<Domain> = None;
 
@@ -55,8 +64,8 @@ impl DigitalOceanClient {
         rtype: &String,
     ) -> Result<Option<DomainRecord>, Error> {
         let mut url = format!(
-            "https://api.digitalocean.com/v2/domains/{}/records?type={}",
-            domain, rtype
+            "{}/v2/domains/{}/records?type={}",
+            self.base_url, domain, rtype
         );
         let mut exit = false;
         let mut obj: Option<DomainRecord> = None;
@@ -97,8 +106,8 @@ impl DigitalOceanClient {
         value: &IpAddr,
     ) -> Result<DomainRecord, Error> {
         let url = format!(
-            "https://api.digitalocean.com/v2/domains/{}/records/{}",
-            domain, record.id
+            "{}/v2/domains/{}/records/{}",
+            self.base_url, domain, record.id
         );
         let resp = ClientBuilder::new()
             .build()
@@ -127,7 +136,7 @@ impl DigitalOceanClient {
         rtype: &String,
         value: &IpAddr,
     ) -> Result<DomainRecord, Error> {
-        let url = format!("https://api.digitalocean.com/v2/domains/{}/records", domain);
+        let url = format!("{}/v2/domains/{}/records", self.base_url, domain);
         let resp = ClientBuilder::new()
             .build()
             .unwrap()
