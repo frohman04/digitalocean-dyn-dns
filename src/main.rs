@@ -5,11 +5,15 @@ extern crate clap;
 extern crate log;
 extern crate reqwest;
 extern crate serde;
+#[cfg(not(test))]
 extern crate serde_json;
 extern crate simplelog;
 
 #[cfg(test)]
 extern crate mockito;
+#[cfg(test)]
+#[macro_use]
+extern crate serde_json;
 
 mod cli;
 mod digitalocean;

@@ -9,6 +9,7 @@ use std::net::IpAddr;
 
 pub struct DigitalOceanClient {
     base_url: String,
+    force_https: bool,
     token: String,
 }
 
@@ -19,7 +20,16 @@ impl DigitalOceanClient {
         #[cfg(test)]
         let base_url = mockito::server_url();
 
-        DigitalOceanClient { base_url, token }
+        #[cfg(not(test))]
+        let force_https = true;
+        #[cfg(test)]
+        let force_https = false;
+
+        DigitalOceanClient {
+            base_url,
+            force_https,
+            token,
+        }
     }
 
     /// Check to see if a domain is controlled by this DigitalOcean account
@@ -47,7 +57,9 @@ impl DigitalOceanClient {
             } else if resp.links.pages.is_some() && resp.links.pages.clone().unwrap().next.is_some()
             {
                 url = resp.links.pages.unwrap().next.unwrap();
-                url = url.replace("http://", "https://");
+                if self.force_https {
+                    url = url.replace("http://", "https://");
+                }
             } else {
                 exit = true;
             }
@@ -89,7 +101,9 @@ impl DigitalOceanClient {
             } else if resp.links.pages.is_some() && resp.links.pages.clone().unwrap().next.is_some()
             {
                 url = resp.links.pages.unwrap().next.unwrap();
-                url = url.replace("http://", "https://");
+                if self.force_https {
+                    url = url.replace("http://", "https://");
+                }
             } else {
                 exit = true;
             }
@@ -193,17 +207,17 @@ impl std::fmt::Display for Error {
 
 // common parts of responses for collections
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 struct Meta {
     total: u32,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 struct Links {
     pages: Option<Pages>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 struct Pages {
     first: Option<String>,
     prev: Option<String>,
@@ -220,7 +234,7 @@ struct DomainsResp {
     links: Links,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 pub struct Domain {
     /// The name of the domain itself.  This should follow the standard domain format of domain.TLD.
     /// For instance, example.com is a valid domain name.
@@ -249,7 +263,7 @@ struct DomainRecordsModifyResp {
     domain_record: DomainRecord,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 pub struct DomainRecord {
     /// A unique identifier for each domain record.
     pub id: u32,
@@ -306,4 +320,312 @@ pub struct DomainRecordPostBody {
 #[derive(Serialize, Debug)]
 struct DomainRecordPutBody {
     pub data: String,
+}
+
+#[cfg(test)]
+mod test {
+    use crate::digitalocean::{DigitalOceanClient, Domain, DomainRecord};
+    use mockito::mock;
+
+    #[test]
+    fn test_get_domain_simple_found() {
+        let _m = mock("GET", "/v2/domains")
+            .with_status(200)
+            .with_body(
+                serde_json::to_string(&json!({
+                    "domains": [
+                        {
+                            "name": "google.com",
+                            "ttl": 40,
+                            "zone_file": "blargh!"
+                        },
+                        {
+                            "name": "yahoo.com",
+                            "ttl": 100,
+                            "zone_file": "oof"
+                        }
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new("foo".to_string())
+            .get_domain(&"yahoo.com".to_string())
+            .unwrap();
+        assert_eq!(
+            Some(Domain {
+                name: "yahoo.com".to_string(),
+                ttl: 100,
+                zone_file: "oof".to_string()
+            }),
+            resp
+        );
+        _m.assert();
+    }
+
+    #[test]
+    fn test_get_domain_paginated_found() {
+        let _m = mock("GET", "/v2/domains")
+            .with_status(200)
+            .with_body(
+                serde_json::to_string(&json!({
+                    "domains": [
+                        {
+                            "name": "google.com",
+                            "ttl": 40,
+                            "zone_file": "blargh!"
+                        }
+                    ],
+                    "meta": {
+                        "total": 1
+                    },
+                    "links": {
+                        "pages": {
+                            "next": format!("{}/v2/domains?page=2", mockito::server_url())
+                        }
+                    }
+                }))
+                .unwrap(),
+            )
+            .create();
+        let _m_page2 = mock("GET", "/v2/domains?page=2")
+            .with_status(200)
+            .with_body(
+                serde_json::to_string(&json!({
+                    "domains": [
+                        {
+                            "name": "yahoo.com",
+                            "ttl": 100,
+                            "zone_file": "oof"
+                        }
+                    ],
+                    "meta": {
+                        "total": 1
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new("foo".to_string())
+            .get_domain(&"yahoo.com".to_string())
+            .unwrap();
+        assert_eq!(
+            Some(Domain {
+                name: "yahoo.com".to_string(),
+                ttl: 100,
+                zone_file: "oof".to_string()
+            }),
+            resp
+        );
+        _m.assert();
+        _m_page2.assert();
+    }
+
+    #[test]
+    fn test_get_domain_missing() {
+        let _m = mock("GET", "/v2/domains")
+            .with_status(200)
+            .with_body(
+                serde_json::to_string(&json!({
+                    "domains": [],
+                    "meta": {
+                        "total": 0
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new("foo".to_string())
+            .get_domain(&"yahoo.com".to_string())
+            .unwrap();
+        assert_eq!(None, resp);
+        _m.assert();
+    }
+
+    #[test]
+    fn test_get_record_simple_found() {
+        let _m = mock("GET", "/v2/domains/google.com/records?type=A")
+            .with_status(200)
+            .with_body(
+                serde_json::to_string(&json!({
+                    "domain_records": [
+                        {
+                            "id": 123,
+                            "type": "A",
+                            "name": "@",
+                            "data": "1.2.3.4",
+                            "priority": null,
+                            "port": null,
+                            "ttl": 40,
+                            "weight": null,
+                            "flags": null,
+                            "tag": null
+                        },
+                        {
+                            "id": 234,
+                            "type": "A",
+                            "name": "foo",
+                            "data": "2.3.4.5",
+                            "priority": null,
+                            "port": null,
+                            "ttl": 100,
+                            "weight": null,
+                            "flags": null,
+                            "tag": null
+                        }
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new("foo".to_string())
+            .get_record(
+                &"google.com".to_string(),
+                &"foo".to_string(),
+                &"A".to_string(),
+            )
+            .unwrap();
+        assert_eq!(
+            Some(DomainRecord {
+                id: 234,
+                typ: "A".to_string(),
+                name: "foo".to_string(),
+                data: "2.3.4.5".to_string(),
+                priority: None,
+                port: None,
+                ttl: 100,
+                weight: None,
+                flags: None,
+                tag: None
+            }),
+            resp
+        );
+        _m.assert();
+    }
+
+    #[test]
+    fn test_get_record_paginated_found() {
+        let _m = mock("GET", "/v2/domains/google.com/records?type=A")
+            .with_status(200)
+            .with_body(
+                serde_json::to_string(&json!({
+                    "domain_records": [
+                        {
+                            "id": 123,
+                            "type": "A",
+                            "name": "@",
+                            "data": "1.2.3.4",
+                            "priority": null,
+                            "port": null,
+                            "ttl": 40,
+                            "weight": null,
+                            "flags": null,
+                            "tag": null
+                        }
+                    ],
+                    "meta": {
+                        "total": 1
+                    },
+                    "links": {
+                        "pages": {
+                            "next": format!("{}/v2/domains/google.com/records?type=A&page=2", mockito::server_url())
+                        }
+                    }
+                }))
+                    .unwrap(),
+            )
+            .create();
+        let _m_page2 = mock("GET", "/v2/domains/google.com/records?type=A&page=2")
+            .with_status(200)
+            .with_body(
+                serde_json::to_string(&json!({
+                    "domain_records": [
+                        {
+                            "id": 234,
+                            "type": "A",
+                            "name": "foo",
+                            "data": "2.3.4.5",
+                            "priority": null,
+                            "port": null,
+                            "ttl": 100,
+                            "weight": null,
+                            "flags": null,
+                            "tag": null
+                        }
+                    ],
+                    "meta": {
+                        "total": 1
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new("foo".to_string())
+            .get_record(
+                &"google.com".to_string(),
+                &"foo".to_string(),
+                &"A".to_string(),
+            )
+            .unwrap();
+        assert_eq!(
+            Some(DomainRecord {
+                id: 234,
+                typ: "A".to_string(),
+                name: "foo".to_string(),
+                data: "2.3.4.5".to_string(),
+                priority: None,
+                port: None,
+                ttl: 100,
+                weight: None,
+                flags: None,
+                tag: None
+            }),
+            resp
+        );
+        _m.assert();
+        _m_page2.assert();
+    }
+
+    #[test]
+    fn test_get_record_missing() {
+        let _m = mock("GET", "/v2/domains/google.com/records?type=A")
+            .with_status(200)
+            .with_body(
+                serde_json::to_string(&json!({
+                    "domain_records": [],
+                    "meta": {
+                        "total": 0
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new("foo".to_string())
+            .get_record(
+                &"google.com".to_string(),
+                &"foo".to_string(),
+                &"A".to_string(),
+            )
+            .unwrap();
+        assert_eq!(None, resp);
+        _m.assert();
+    }
 }
