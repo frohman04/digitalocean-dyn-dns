@@ -13,6 +13,7 @@ mod digitalocean;
 mod ip_retriever;
 
 use simplelog::{CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
+use std::net::IpAddr;
 
 fn main() {
     CombinedLogger::init(vec![TermLogger::new(
@@ -26,13 +27,43 @@ fn main() {
     let client = digitalocean::DigitalOceanClient::new(args.token);
 
     client
-        .get_domain(args.domain.clone())
+        .get_domain(&args.domain)
         .expect("Error while contacting DigitalOcean")
         .expect("Unable to find domain in account");
-    let record = client
-        .get_record(args.domain, args.record, args.rtype)
+    match client
+        .get_record(&args.domain, &args.record, &args.rtype)
         .expect("Error while contacting DigitalOcean")
-        .expect("Unable to find record for domain with desired type");
-    info!("Will update record: {:?}", record.id);
-    print!("{:?}", record)
+    {
+        Some(record) => {
+            let record_ip = record
+                .data
+                .parse::<IpAddr>()
+                .expect("Unable to parse {} record for {}.{} as an IP address");
+            if record_ip == args.ip {
+                info!(
+                    "Record {}.{} ({}) already set to {}",
+                    args.record, args.domain, args.rtype, args.ip
+                );
+            } else {
+                info!(
+                    "Will update record {}.{} ({}) to {}",
+                    args.record, args.domain, args.rtype, args.ip
+                );
+                client
+                    .update_record(&args.domain, &record, &args.ip)
+                    .expect("Unable to update record");
+                info!("Successfully updated record!");
+            }
+        }
+        None => {
+            info!(
+                "Will create new record {}.{} ({}) -> {}",
+                args.record, args.domain, args.rtype, args.ip
+            );
+            client
+                .create_record(&args.domain, &args.record, &args.rtype, &args.ip)
+                .expect("Unable to create new record");
+            info!("Successfully created new record!")
+        }
+    };
 }

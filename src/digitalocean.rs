@@ -1,5 +1,8 @@
 use reqwest::blocking::ClientBuilder;
-use serde::Deserialize;
+use serde::export::Formatter;
+use serde::{Deserialize, Serialize};
+
+use std::net::IpAddr;
 
 pub struct DigitalOceanClient {
     token: String,
@@ -11,7 +14,7 @@ impl DigitalOceanClient {
     }
 
     /// Check to see if a domain is controlled by this DigitalOcean account
-    pub fn get_domain(&self, domain: String) -> Result<Option<Domain>, reqwest::Error> {
+    pub fn get_domain(&self, domain: &String) -> Result<Option<Domain>, Error> {
         let mut url = "https://api.digitalocean.com/v2/domains".to_string();
         let mut exit = false;
         let mut obj: Option<Domain> = None;
@@ -25,7 +28,11 @@ impl DigitalOceanClient {
                 .send()?
                 .json::<DomainsResp>()?;
 
-            obj = resp.domains.into_iter().filter(|d| d.name == domain).next();
+            obj = resp
+                .domains
+                .into_iter()
+                .filter(|d| d.name == *domain)
+                .next();
             if obj.is_some() {
                 exit = true;
             } else if resp.links.pages.is_some() && resp.links.pages.clone().unwrap().next.is_some()
@@ -43,10 +50,10 @@ impl DigitalOceanClient {
     /// Check to see if a domain is controlled by this DigitalOcean account
     pub fn get_record(
         &self,
-        domain: String,
-        record: String,
-        rtype: String,
-    ) -> Result<Option<DomainRecord>, reqwest::Error> {
+        domain: &String,
+        record: &String,
+        rtype: &String,
+    ) -> Result<Option<DomainRecord>, Error> {
         let mut url = format!(
             "https://api.digitalocean.com/v2/domains/{}/records?type={}",
             domain, rtype
@@ -66,7 +73,7 @@ impl DigitalOceanClient {
             obj = resp
                 .domain_records
                 .into_iter()
-                .filter(|r| r.name == record)
+                .filter(|r| r.name == *record)
                 .next();
             if obj.is_some() {
                 exit = true;
@@ -80,6 +87,71 @@ impl DigitalOceanClient {
         }
 
         Ok(obj)
+    }
+
+    /// Update an existing DNS A/AAAA record to point to a new IP address
+    pub fn update_record(
+        &self,
+        domain: &String,
+        record: &DomainRecord,
+        value: &IpAddr,
+    ) -> Result<DomainRecord, Error> {
+        let url = format!(
+            "https://api.digitalocean.com/v2/domains/{}/records/{}",
+            domain, record.id
+        );
+        let resp = ClientBuilder::new()
+            .build()
+            .unwrap()
+            .put(&url)
+            .header("Authorization", format!("Bearer {}", self.token))
+            .json(&DomainRecordPutBody {
+                data: value.to_string(),
+            })
+            .send()?
+            .json::<DomainRecord>()?;
+        if resp.data.parse::<IpAddr>()? == *value {
+            Ok(resp)
+        } else {
+            Err(Error::Update(
+                "New IP address not reflected in new DNS record",
+            ))
+        }
+    }
+
+    pub fn create_record(
+        &self,
+        domain: &String,
+        record: &String,
+        rtype: &String,
+        value: &IpAddr,
+    ) -> Result<(), Error> {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug)]
+pub enum Error<'a> {
+    Request(reqwest::Error),
+    IpParse(std::net::AddrParseError),
+    Update(&'a str),
+}
+
+impl<'a> From<reqwest::Error> for Error<'a> {
+    fn from(e: reqwest::Error) -> Self {
+        Error::Request(e)
+    }
+}
+
+impl<'a> From<std::net::AddrParseError> for Error<'a> {
+    fn from(e: std::net::AddrParseError) -> Self {
+        Error::IpParse(e)
+    }
+}
+
+impl<'a> std::fmt::Display for Error<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
@@ -162,4 +234,9 @@ pub struct DomainRecord {
     pub flags: Option<u8>,
     /// The parameter tag for CAA records. Valid values are "issue", "issuewild", or "iodef"
     pub tag: Option<String>,
+}
+
+#[derive(Serialize)]
+struct DomainRecordPutBody {
+    pub data: String,
 }
