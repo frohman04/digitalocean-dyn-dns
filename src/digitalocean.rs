@@ -123,7 +123,7 @@ impl DigitalOceanClient {
             Ok(resp.domain_record)
         } else {
             Err(Error::Update(
-                "New IP address not reflected in updated DNS record",
+                "New IP address not reflected in updated DNS record".to_string(),
             ))
         }
     }
@@ -159,33 +159,33 @@ impl DigitalOceanClient {
             Ok(resp.domain_record)
         } else {
             Err(Error::Create(
-                "New IP address not reflected in new DNS record",
+                "New IP address not reflected in new DNS record".to_string(),
             ))
         }
     }
 }
 
 #[derive(Debug)]
-pub enum Error<'a> {
+pub enum Error {
     Request(reqwest::Error),
     IpParse(std::net::AddrParseError),
-    Update(&'a str),
-    Create(&'a str),
+    Update(String),
+    Create(String),
 }
 
-impl<'a> From<reqwest::Error> for Error<'a> {
+impl From<reqwest::Error> for Error {
     fn from(e: reqwest::Error) -> Self {
         Error::Request(e)
     }
 }
 
-impl<'a> From<std::net::AddrParseError> for Error<'a> {
+impl From<std::net::AddrParseError> for Error {
     fn from(e: std::net::AddrParseError) -> Self {
         Error::IpParse(e)
     }
 }
 
-impl<'a> std::fmt::Display for Error<'a> {
+impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
