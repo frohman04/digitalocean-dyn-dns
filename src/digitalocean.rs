@@ -330,7 +330,9 @@ mod test {
     #[test]
     fn test_get_domain_simple_found() {
         let _m = mock("GET", "/v2/domains")
+            .match_header("Authorization", "Bearer foo")
             .with_status(200)
+            .with_header("Content-Type", "application/json")
             .with_body(
                 serde_json::to_string(&json!({
                     "domains": [
@@ -371,7 +373,9 @@ mod test {
     #[test]
     fn test_get_domain_paginated_found() {
         let _m = mock("GET", "/v2/domains")
+            .match_header("Authorization", "Bearer foo")
             .with_status(200)
+            .with_header("Content-Type", "application/json")
             .with_body(
                 serde_json::to_string(&json!({
                     "domains": [
@@ -394,7 +398,9 @@ mod test {
             )
             .create();
         let _m_page2 = mock("GET", "/v2/domains?page=2")
+            .match_header("Authorization", "Bearer foo")
             .with_status(200)
+            .with_header("Content-Type", "application/json")
             .with_body(
                 serde_json::to_string(&json!({
                     "domains": [
@@ -431,7 +437,9 @@ mod test {
     #[test]
     fn test_get_domain_missing() {
         let _m = mock("GET", "/v2/domains")
+            .match_header("Authorization", "Bearer foo")
             .with_status(200)
+            .with_header("Content-Type", "application/json")
             .with_body(
                 serde_json::to_string(&json!({
                     "domains": [],
@@ -454,7 +462,9 @@ mod test {
     #[test]
     fn test_get_record_simple_found() {
         let _m = mock("GET", "/v2/domains/google.com/records?type=A")
+            .match_header("Authorization", "Bearer foo")
             .with_status(200)
+            .with_header("Content-Type", "application/json")
             .with_body(
                 serde_json::to_string(&json!({
                     "domain_records": [
@@ -520,7 +530,9 @@ mod test {
     #[test]
     fn test_get_record_paginated_found() {
         let _m = mock("GET", "/v2/domains/google.com/records?type=A")
+            .match_header("Authorization", "Bearer foo")
             .with_status(200)
+            .with_header("Content-Type", "application/json")
             .with_body(
                 serde_json::to_string(&json!({
                     "domain_records": [
@@ -550,7 +562,9 @@ mod test {
             )
             .create();
         let _m_page2 = mock("GET", "/v2/domains/google.com/records?type=A&page=2")
+            .match_header("Authorization", "Bearer foo")
             .with_status(200)
+            .with_header("Content-Type", "application/json")
             .with_body(
                 serde_json::to_string(&json!({
                     "domain_records": [
@@ -605,7 +619,9 @@ mod test {
     #[test]
     fn test_get_record_missing() {
         let _m = mock("GET", "/v2/domains/google.com/records?type=A")
+            .match_header("Authorization", "Bearer foo")
             .with_status(200)
+            .with_header("Content-Type", "application/json")
             .with_body(
                 serde_json::to_string(&json!({
                     "domain_records": [],
