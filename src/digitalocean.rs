@@ -711,4 +711,67 @@ mod test {
         );
         _m.assert();
     }
+
+    #[test]
+    fn test_create_record() {
+        let _m = mock("POST", "/v2/domains/google.com/records")
+            .match_header("Authorization", "Bearer foo")
+            .match_header("Content-Type", "application/json")
+            .match_body(mockito::Matcher::Json(json!({
+                "type": "A",
+                "name": "foo",
+                "data": "1.2.3.4",
+                "priority": null,
+                "port": null,
+                "ttl": 60,
+                "weight": null,
+                "flags": null,
+                "tag": null
+            })))
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "domain_record": {
+                        "id": 234,
+                        "type": "A",
+                        "name": "foo",
+                        "data": "1.2.3.4",
+                        "priority": null,
+                        "port": null,
+                        "ttl": 60,
+                        "weight": null,
+                        "flags": null,
+                        "tag": null
+                    }
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new("foo".to_string())
+            .create_record(
+                &"google.com".to_string(),
+                &"foo".to_string(),
+                &"A".to_string(),
+                &Ipv4Addr::new(1, 2, 3, 4).into(),
+            )
+            .unwrap();
+        assert_eq!(
+            DomainRecord {
+                id: 234,
+                typ: "A".to_string(),
+                name: "foo".to_string(),
+                data: "1.2.3.4".to_string(),
+                priority: None,
+                port: None,
+                ttl: 60,
+                weight: None,
+                flags: None,
+                tag: None
+            },
+            resp
+        );
+        _m.assert();
+    }
 }
