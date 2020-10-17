@@ -326,6 +326,7 @@ struct DomainRecordPutBody {
 mod test {
     use crate::digitalocean::{DigitalOceanClient, Domain, DomainRecord};
     use mockito::mock;
+    use std::net::Ipv4Addr;
 
     #[test]
     fn test_get_domain_simple_found() {
@@ -642,6 +643,72 @@ mod test {
             )
             .unwrap();
         assert_eq!(None, resp);
+        _m.assert();
+    }
+
+    #[test]
+    fn test_update_record() {
+        let _m = mock("PUT", "/v2/domains/google.com/records/234")
+            .match_header("Authorization", "Bearer foo")
+            .match_header("Content-Type", "application/json")
+            .match_body(mockito::Matcher::Json(json!({
+                "data": "2.3.4.5"
+            })))
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "domain_record": {
+                        "id": 234,
+                        "type": "A",
+                        "name": "foo",
+                        "data": "2.3.4.5",
+                        "priority": null,
+                        "port": null,
+                        "ttl": 100,
+                        "weight": null,
+                        "flags": null,
+                        "tag": null
+                    }
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let orig_record = DomainRecord {
+            id: 234,
+            typ: "A".to_string(),
+            name: "foo".to_string(),
+            data: "1.2.3.4".to_string(),
+            priority: None,
+            port: None,
+            ttl: 100,
+            weight: None,
+            flags: None,
+            tag: None,
+        };
+        let resp = DigitalOceanClient::new("foo".to_string())
+            .update_record(
+                &"google.com".to_string(),
+                &orig_record,
+                &Ipv4Addr::new(2, 3, 4, 5).into(),
+            )
+            .unwrap();
+        assert_eq!(
+            DomainRecord {
+                id: 234,
+                typ: "A".to_string(),
+                name: "foo".to_string(),
+                data: "2.3.4.5".to_string(),
+                priority: None,
+                port: None,
+                ttl: 100,
+                weight: None,
+                flags: None,
+                tag: None
+            },
+            resp
+        );
         _m.assert();
     }
 }
