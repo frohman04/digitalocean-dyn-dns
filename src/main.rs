@@ -34,14 +34,20 @@ fn main() {
     .unwrap();
 
     let args = cli::Args::parse_args();
-    let client = digitalocean::DigitalOceanClient::new(args.token);
+    let client = digitalocean::DigitalOceanClientImpl::new(args.token);
 
-    run(client, args.domain, args.record, args.rtype, args.ip)
-        .expect("Encountered error while updating DNS record");
+    run(
+        Box::new(client),
+        args.domain,
+        args.record,
+        args.rtype,
+        args.ip,
+    )
+    .expect("Encountered error while updating DNS record");
 }
 
 fn run(
-    client: DigitalOceanClient,
+    client: Box<dyn DigitalOceanClient>,
     domain: String,
     record_name: String,
     rtype: String,

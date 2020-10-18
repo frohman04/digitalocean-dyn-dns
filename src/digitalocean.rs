@@ -7,14 +7,40 @@ use mockito;
 
 use std::net::IpAddr;
 
-pub struct DigitalOceanClient {
+pub trait DigitalOceanClient {
+    fn get_domain(&self, domain: &String) -> Result<Option<Domain>, Error>;
+
+    fn get_record(
+        &self,
+        domain: &String,
+        record: &String,
+        rtype: &String,
+    ) -> Result<Option<DomainRecord>, Error>;
+
+    fn update_record(
+        &self,
+        domain: &String,
+        record: &DomainRecord,
+        value: &IpAddr,
+    ) -> Result<DomainRecord, Error>;
+
+    fn create_record(
+        &self,
+        domain: &String,
+        record: &String,
+        rtype: &String,
+        value: &IpAddr,
+    ) -> Result<DomainRecord, Error>;
+}
+
+pub struct DigitalOceanClientImpl {
     base_url: String,
     force_https: bool,
     token: String,
 }
 
-impl DigitalOceanClient {
-    pub fn new(token: String) -> DigitalOceanClient {
+impl DigitalOceanClientImpl {
+    pub fn new(token: String) -> DigitalOceanClientImpl {
         #[cfg(not(test))]
         let base_url = "https://api.digitalocean.com".to_string();
         #[cfg(test)]
@@ -25,15 +51,17 @@ impl DigitalOceanClient {
         #[cfg(test)]
         let force_https = false;
 
-        DigitalOceanClient {
+        DigitalOceanClientImpl {
             base_url,
             force_https,
             token,
         }
     }
+}
 
+impl DigitalOceanClient for DigitalOceanClientImpl {
     /// Check to see if a domain is controlled by this DigitalOcean account
-    pub fn get_domain(&self, domain: &String) -> Result<Option<Domain>, Error> {
+    fn get_domain(&self, domain: &String) -> Result<Option<Domain>, Error> {
         let mut url = format!("{}/v2/domains", self.base_url);
         let mut exit = false;
         let mut obj: Option<Domain> = None;
@@ -69,7 +97,7 @@ impl DigitalOceanClient {
     }
 
     /// Check to see if a domain is controlled by this DigitalOcean account
-    pub fn get_record(
+    fn get_record(
         &self,
         domain: &String,
         record: &String,
@@ -113,7 +141,7 @@ impl DigitalOceanClient {
     }
 
     /// Update an existing DNS A/AAAA record to point to a new IP address
-    pub fn update_record(
+    fn update_record(
         &self,
         domain: &String,
         record: &DomainRecord,
@@ -143,7 +171,7 @@ impl DigitalOceanClient {
     }
 
     /// Create a new DNS A/AAAA record to point to an IP address
-    pub fn create_record(
+    fn create_record(
         &self,
         domain: &String,
         record: &String,
@@ -324,7 +352,7 @@ struct DomainRecordPutBody {
 
 #[cfg(test)]
 mod test {
-    use crate::digitalocean::{DigitalOceanClient, Domain, DomainRecord};
+    use crate::digitalocean::{DigitalOceanClient, DigitalOceanClientImpl, Domain, DomainRecord};
     use mockito::mock;
     use std::net::Ipv4Addr;
 
@@ -357,7 +385,7 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClient::new("foo".to_string())
+        let resp = DigitalOceanClientImpl::new("foo".to_string())
             .get_domain(&"yahoo.com".to_string())
             .unwrap();
         assert_eq!(
@@ -420,7 +448,7 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClient::new("foo".to_string())
+        let resp = DigitalOceanClientImpl::new("foo".to_string())
             .get_domain(&"yahoo.com".to_string())
             .unwrap();
         assert_eq!(
@@ -453,7 +481,7 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClient::new("foo".to_string())
+        let resp = DigitalOceanClientImpl::new("foo".to_string())
             .get_domain(&"yahoo.com".to_string())
             .unwrap();
         assert_eq!(None, resp);
@@ -503,7 +531,7 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClient::new("foo".to_string())
+        let resp = DigitalOceanClientImpl::new("foo".to_string())
             .get_record(
                 &"google.com".to_string(),
                 &"foo".to_string(),
@@ -591,7 +619,7 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClient::new("foo".to_string())
+        let resp = DigitalOceanClientImpl::new("foo".to_string())
             .get_record(
                 &"google.com".to_string(),
                 &"foo".to_string(),
@@ -635,7 +663,7 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClient::new("foo".to_string())
+        let resp = DigitalOceanClientImpl::new("foo".to_string())
             .get_record(
                 &"google.com".to_string(),
                 &"foo".to_string(),
@@ -687,7 +715,7 @@ mod test {
             flags: None,
             tag: None,
         };
-        let resp = DigitalOceanClient::new("foo".to_string())
+        let resp = DigitalOceanClientImpl::new("foo".to_string())
             .update_record(
                 &"google.com".to_string(),
                 &orig_record,
@@ -749,7 +777,7 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClient::new("foo".to_string())
+        let resp = DigitalOceanClientImpl::new("foo".to_string())
             .create_record(
                 &"google.com".to_string(),
                 &"foo".to_string(),
