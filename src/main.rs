@@ -56,10 +56,7 @@ fn run(
     client.get_domain(&domain)?.ok_or(Error::DomainNotFound())?;
     match client.get_record(&domain, &record_name, &rtype)? {
         Some(record) => {
-            let record_ip = record
-                .data
-                .parse::<IpAddr>()
-                .expect("Unable to parse {} record for {}.{} as an IP address");
+            let record_ip = record.data.parse::<IpAddr>()?;
             if record_ip == ip {
                 info!(
                     "Record {}.{} ({}) already set to {}",
@@ -71,9 +68,7 @@ fn run(
                     "Will update record_name {}.{} ({}) to {}",
                     record_name, domain, rtype, ip
                 );
-                let record = client
-                    .update_record(&domain, &record, &ip)
-                    .expect("Unable to update record");
+                let record = client.update_record(&domain, &record, &ip)?;
                 info!("Successfully updated record!");
                 Ok(record)
             }
@@ -83,9 +78,7 @@ fn run(
                 "Will create new record {}.{} ({}) -> {}",
                 record_name, domain, rtype, ip
             );
-            let record = client
-                .create_record(&domain, &record_name, &rtype, &ip)
-                .expect("Unable to create new record");
+            let record = client.create_record(&domain, &record_name, &rtype, &ip)?;
             info!("Successfully created new record! ({})", record.id);
             Ok(record)
         }
@@ -95,12 +88,19 @@ fn run(
 #[derive(Debug)]
 enum Error {
     Client(digitalocean::Error),
+    AddrParseError(std::net::AddrParseError),
     DomainNotFound(),
 }
 
 impl From<digitalocean::Error> for Error {
     fn from(e: digitalocean::Error) -> Self {
         Error::Client(e)
+    }
+}
+
+impl From<std::net::AddrParseError> for Error {
+    fn from(e: std::net::AddrParseError) -> Self {
+        Error::AddrParseError(e)
     }
 }
 
