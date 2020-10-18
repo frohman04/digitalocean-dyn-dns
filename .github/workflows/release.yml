@@ -63,12 +63,12 @@ jobs:
           args: --release
       - name: "x86_64: build_bundle"
         run: |
-          tar -czf tomato-exporter-${{ steps.get_version.outputs.VERSION }}.x86_64.tar.gz -C ./target/release/ tomato-exporter
+          tar -czf digitalocean-dyn-dns-${{ steps.get_version.outputs.VERSION }}.x86_64.tar.gz -C ./target/release/ digitalocean-dyn-dns
       - name: "x86_64: upload_bundle"
         uses: actions/upload-artifact@v2
         with:
           name: bundle-x86_64
-          path: tomato-exporter-${{ steps.get_version.outputs.VERSION }}.x86_64.tar.gz
+          path: digitalocean-dyn-dns-${{ steps.get_version.outputs.VERSION }}.x86_64.tar.gz
 
   build_armv7:
     name: Build ARMv7
@@ -100,12 +100,12 @@ jobs:
           cross build --target armv7-unknown-linux-gnueabihf --release
       - name: "armv7: build_bundle"
         run: |
-          tar -czf tomato-exporter-${{ steps.get_version.outputs.VERSION }}.armv7.tar.gz -C ./target/armv7-unknown-linux-gnueabihf/release/ tomato-exporter
+          tar -czf digitalocean-dyn-dns-${{ steps.get_version.outputs.VERSION }}.armv7.tar.gz -C ./target/armv7-unknown-linux-gnueabihf/release/ digitalocean-dyn-dns
       - name: "armv7: upload_bundle"
         uses: actions/upload-artifact@v2
         with:
           name: bundle-armv7
-          path: tomato-exporter-${{ steps.get_version.outputs.VERSION }}.armv7.tar.gz
+          path: digitalocean-dyn-dns-${{ steps.get_version.outputs.VERSION }}.armv7.tar.gz
 
   #------------------------------------------------------------
   # gather all release bundles and create GitHub release
@@ -135,7 +135,7 @@ jobs:
           name: Release ${{ steps.get_version.outputs.VERSION }}
           body: ""
           files: |
-            tomato-exporter-${{ steps.get_version.outputs.VERSION }}.x86_64.tar.gz
-            tomato-exporter-${{ steps.get_version.outputs.VERSION }}.armv7.tar.gz
+            digitalocean-dyn-dns-${{ steps.get_version.outputs.VERSION }}.x86_64.tar.gz
+            digitalocean-dyn-dns-${{ steps.get_version.outputs.VERSION }}.armv7.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
