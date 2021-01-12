@@ -1,5 +1,4 @@
 use reqwest::blocking::ClientBuilder;
-use serde::export::Formatter;
 use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
@@ -228,7 +227,7 @@ impl From<std::net::AddrParseError> for Error {
 }
 
 impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
     }
 }
