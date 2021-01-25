@@ -14,4 +14,4 @@ serde_json = "~1.0.61"
 simplelog = "~0.9"
 
 [dev-dependencies]
-mockito = "~0.28.0"
+mockito = "~0.29.0"
