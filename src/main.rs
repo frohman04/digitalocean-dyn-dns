@@ -19,7 +19,7 @@ mod cli;
 mod digitalocean;
 mod ip_retriever;
 
-use simplelog::{CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
+use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 use std::fmt::Formatter;
 use std::net::IpAddr;
 
@@ -30,6 +30,7 @@ fn main() {
         LevelFilter::Info,
         Config::default(),
         TerminalMode::Stderr,
+        ColorChoice::Auto,
     )])
     .unwrap();
 
@@ -88,7 +89,7 @@ fn run(
 #[derive(Debug)]
 enum Error {
     Client(digitalocean::Error),
-    AddrParseError(std::net::AddrParseError),
+    AddrParseErr(std::net::AddrParseError),
     DomainNotFound(),
 }
 
@@ -100,7 +101,7 @@ impl From<digitalocean::Error> for Error {
 
 impl From<std::net::AddrParseError> for Error {
     fn from(e: std::net::AddrParseError) -> Self {
-        Error::AddrParseError(e)
+        Error::AddrParseErr(e)
     }
 }
 
@@ -274,7 +275,7 @@ mod test {
     }
 
     impl DigitalOceanClient for TestClientImpl {
-        fn get_domain(&self, _: &String) -> Result<Option<Domain>, Error> {
+        fn get_domain(&self, _: &str) -> Result<Option<Domain>, Error> {
             if self.get_domain_is_ok {
                 if self.get_domain_is_some {
                     Ok(Some(Domain {
@@ -290,12 +291,7 @@ mod test {
             }
         }
 
-        fn get_record(
-            &self,
-            _: &String,
-            _: &String,
-            _: &String,
-        ) -> Result<Option<DomainRecord>, Error> {
+        fn get_record(&self, _: &str, _: &str, _: &str) -> Result<Option<DomainRecord>, Error> {
             if self.get_record_is_ok {
                 if self.get_record_is_some {
                     Ok(Some(DomainRecord {
@@ -320,7 +316,7 @@ mod test {
 
         fn update_record(
             &self,
-            _: &String,
+            _: &str,
             record: &DomainRecord,
             value: &IpAddr,
         ) -> Result<DomainRecord, Error> {
@@ -344,16 +340,16 @@ mod test {
 
         fn create_record(
             &self,
-            _: &String,
-            record: &String,
-            rtype: &String,
+            _: &str,
+            record: &str,
+            rtype: &str,
             value: &IpAddr,
         ) -> Result<DomainRecord, Error> {
             if self.create_record_is_ok {
                 Ok(DomainRecord {
                     id: 123,
-                    typ: rtype.clone(),
-                    name: record.clone(),
+                    typ: rtype.to_string(),
+                    name: record.to_string(),
                     data: (*value).to_string(),
                     priority: None,
                     port: None,

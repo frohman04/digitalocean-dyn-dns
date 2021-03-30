@@ -7,27 +7,27 @@ use mockito;
 use std::net::IpAddr;
 
 pub trait DigitalOceanClient {
-    fn get_domain(&self, domain: &String) -> Result<Option<Domain>, Error>;
+    fn get_domain(&self, domain: &str) -> Result<Option<Domain>, Error>;
 
     fn get_record(
         &self,
-        domain: &String,
-        record: &String,
-        rtype: &String,
+        domain: &str,
+        record: &str,
+        rtype: &str,
     ) -> Result<Option<DomainRecord>, Error>;
 
     fn update_record(
         &self,
-        domain: &String,
+        domain: &str,
         record: &DomainRecord,
         value: &IpAddr,
     ) -> Result<DomainRecord, Error>;
 
     fn create_record(
         &self,
-        domain: &String,
-        record: &String,
-        rtype: &String,
+        domain: &str,
+        record: &str,
+        rtype: &str,
         value: &IpAddr,
     ) -> Result<DomainRecord, Error>;
 }
@@ -60,7 +60,7 @@ impl DigitalOceanClientImpl {
 
 impl DigitalOceanClient for DigitalOceanClientImpl {
     /// Check to see if a domain is controlled by this DigitalOcean account
-    fn get_domain(&self, domain: &String) -> Result<Option<Domain>, Error> {
+    fn get_domain(&self, domain: &str) -> Result<Option<Domain>, Error> {
         let mut url = format!("{}/v2/domains", self.base_url);
         let mut exit = false;
         let mut obj: Option<Domain> = None;
@@ -74,11 +74,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
                 .send()?
                 .json::<DomainsResp>()?;
 
-            obj = resp
-                .domains
-                .into_iter()
-                .filter(|d| d.name == *domain)
-                .next();
+            obj = resp.domains.into_iter().find(|d| d.name == *domain);
             if obj.is_some() {
                 exit = true;
             } else if resp.links.pages.is_some() && resp.links.pages.clone().unwrap().next.is_some()
@@ -98,9 +94,9 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
     /// Check to see if a domain is controlled by this DigitalOcean account
     fn get_record(
         &self,
-        domain: &String,
-        record: &String,
-        rtype: &String,
+        domain: &str,
+        record: &str,
+        rtype: &str,
     ) -> Result<Option<DomainRecord>, Error> {
         let mut url = format!(
             "{}/v2/domains/{}/records?type={}",
@@ -118,11 +114,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
                 .send()?
                 .json::<DomainRecordsResp>()?;
 
-            obj = resp
-                .domain_records
-                .into_iter()
-                .filter(|r| r.name == *record)
-                .next();
+            obj = resp.domain_records.into_iter().find(|r| r.name == *record);
             if obj.is_some() {
                 exit = true;
             } else if resp.links.pages.is_some() && resp.links.pages.clone().unwrap().next.is_some()
@@ -142,7 +134,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
     /// Update an existing DNS A/AAAA record to point to a new IP address
     fn update_record(
         &self,
-        domain: &String,
+        domain: &str,
         record: &DomainRecord,
         value: &IpAddr,
     ) -> Result<DomainRecord, Error> {
@@ -172,9 +164,9 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
     /// Create a new DNS A/AAAA record to point to an IP address
     fn create_record(
         &self,
-        domain: &String,
-        record: &String,
-        rtype: &String,
+        domain: &str,
+        record: &str,
+        rtype: &str,
         value: &IpAddr,
     ) -> Result<DomainRecord, Error> {
         let url = format!("{}/v2/domains/{}/records", self.base_url, domain);
@@ -184,8 +176,8 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.token))
             .json(&DomainRecordPostBody {
-                typ: rtype.clone(),
-                name: record.clone(),
+                typ: rtype.to_string(),
+                name: record.to_string(),
                 data: value.to_string(),
                 priority: None,
                 port: None,
