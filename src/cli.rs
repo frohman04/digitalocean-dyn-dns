@@ -101,8 +101,8 @@ impl Args {
         let local = matches.is_present("local");
         let rtype = matches.value_of("rtype").unwrap().to_string();
 
-        let ip = if literal_ip.is_some() {
-            literal_ip.unwrap()
+        let ip = if let Some(lit) = literal_ip {
+            lit
         } else if local {
             ip_retriever::get_local_ip().expect("Unable to retrieve local IP address")
         } else {
