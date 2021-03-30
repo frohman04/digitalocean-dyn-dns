@@ -19,7 +19,7 @@ mod cli;
 mod digitalocean;
 mod ip_retriever;
 
-use simplelog::{CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
+use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 use std::fmt::Formatter;
 use std::net::IpAddr;
 
@@ -30,6 +30,7 @@ fn main() {
         LevelFilter::Info,
         Config::default(),
         TerminalMode::Stderr,
+        ColorChoice::Auto,
     )])
     .unwrap();
 
