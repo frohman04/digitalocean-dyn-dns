@@ -22,35 +22,35 @@ impl Args {
             .version(crate_version!())
             .author("Chris Lieb")
             .arg(
-                clap::Arg::with_name("RECORD")
+                clap::Arg::new("RECORD")
                     .required(true)
                     .takes_value(true)
                     .help("The DNS record within the domain to update"),
             )
             .arg(
-                clap::Arg::with_name("DOMAIN")
+                clap::Arg::new("DOMAIN")
                     .required(true)
                     .takes_value(true)
                     .help("The domain that has the record to update"),
             )
             .arg(
-                clap::Arg::with_name("token")
-                    .short("t")
+                clap::Arg::new("token")
+                    .short('t')
                     .long("token")
                     .takes_value(true)
                     .env("DIGITAL_OCEAN_TOKEN")
                     .help("The API token to use to auth with DigitalOcean"),
             )
             .arg(
-                clap::Arg::with_name("local")
-                    .short("l")
+                clap::Arg::new("local")
+                    .short('l')
                     .long("local")
                     .takes_value(false)
                     .conflicts_with("ip")
                     .help("Use the local IP address connected to the internet"),
             )
             .arg(
-                clap::Arg::with_name("ip")
+                clap::Arg::new("ip")
                     .long("ip")
                     .takes_value(true)
                     .conflicts_with("local")
@@ -61,7 +61,7 @@ impl Args {
                     .help("Use this IP address when updating the record"),
             )
             .arg(
-                clap::Arg::with_name("rtype")
+                clap::Arg::new("rtype")
                     .long("rtype")
                     .takes_value(true)
                     .possible_values(&["A", "AAAA"])
@@ -69,7 +69,7 @@ impl Args {
                     .help("The type of DNS record to set"),
             )
             .arg(
-                clap::Arg::with_name("ttl")
+                clap::Arg::new("ttl")
                     .long("ttl")
                     .takes_value(true)
                     .default_value("60")
@@ -80,15 +80,15 @@ impl Args {
                     .help("The TTL for the new DNS record"),
             )
             .arg(
-                clap::Arg::with_name("quiet")
-                    .short("q")
+                clap::Arg::new("quiet")
+                    .short('q')
                     .long("quiet")
                     .takes_value(false)
                     .help("Only display output on IP change"),
             )
             .arg(
-                clap::Arg::with_name("dry_run")
-                    .short("n")
+                clap::Arg::new("dry_run")
+                    .short('n')
                     .long("dry-run")
                     .takes_value(false)
                     .help("Do everything except actually set the record"),
