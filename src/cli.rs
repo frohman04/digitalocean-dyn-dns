@@ -18,7 +18,7 @@ pub struct Args {
 
 impl Args {
     pub fn parse_args() -> Args {
-        let matches = clap::App::new(crate_name!())
+        let matches = clap::Command::new(crate_name!())
             .version(crate_version!())
             .author("Chris Lieb")
             .arg(

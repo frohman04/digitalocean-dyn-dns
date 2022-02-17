@@ -249,6 +249,7 @@ struct Pages {
 #[derive(Deserialize, Debug)]
 struct DomainsResp {
     domains: Vec<Domain>,
+    #[allow(dead_code)]
     meta: Meta,
     links: Links,
 }
@@ -273,6 +274,7 @@ pub struct Domain {
 #[derive(Deserialize, Debug)]
 struct DomainRecordsResp {
     domain_records: Vec<DomainRecord>,
+    #[allow(dead_code)]
     meta: Meta,
     links: Links,
 }
