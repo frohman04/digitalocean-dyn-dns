@@ -1,13 +1,13 @@
 #![forbid(unsafe_code)]
 
 extern crate clap;
+extern crate env_logger;
 #[macro_use]
 extern crate log;
 extern crate reqwest;
 extern crate serde;
 #[cfg(not(test))]
 extern crate serde_json;
-extern crate simplelog;
 
 #[cfg(test)]
 extern crate mockito;
@@ -19,20 +19,16 @@ mod cli;
 mod digitalocean;
 mod ip_retriever;
 
-use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
+use env_logger::Env;
 use std::fmt::Formatter;
 use std::net::IpAddr;
 
 use crate::digitalocean::{DigitalOceanClient, DomainRecord};
 
 fn main() {
-    CombinedLogger::init(vec![TermLogger::new(
-        LevelFilter::Info,
-        Config::default(),
-        TerminalMode::Stderr,
-        ColorChoice::Auto,
-    )])
-    .unwrap();
+    let env = Env::default()
+        .filter_or("MY_LOG_LEVEL", "info");
+    env_logger::init_from_env(env);
 
     let args = cli::Args::parse_args();
     let client = digitalocean::DigitalOceanClientImpl::new(args.token);
