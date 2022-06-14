@@ -26,8 +26,7 @@ use std::net::IpAddr;
 use crate::digitalocean::{DigitalOceanClient, DomainRecord};
 
 fn main() {
-    let env = Env::default()
-        .filter_or("MY_LOG_LEVEL", "info");
+    let env = Env::default().filter_or("MY_LOG_LEVEL", "info");
     env_logger::init_from_env(env);
 
     let args = cli::Args::parse_args();

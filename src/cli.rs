@@ -54,17 +54,14 @@ impl Args {
                     .long("ip")
                     .takes_value(true)
                     .conflicts_with("local")
-                    .validator(|val| match val.parse::<IpAddr>() {
-                        Ok(_) => Ok(()),
-                        Err(e) => Err(e.to_string()),
-                    })
+                    .value_parser(clap::value_parser!(IpAddr))
                     .help("Use this IP address when updating the record"),
             )
             .arg(
                 clap::Arg::new("rtype")
                     .long("rtype")
                     .takes_value(true)
-                    .possible_values(&["A", "AAAA"])
+                    .value_parser(["A", "AAAA"])
                     .default_value("A")
                     .help("The type of DNS record to set"),
             )
@@ -73,10 +70,7 @@ impl Args {
                     .long("ttl")
                     .takes_value(true)
                     .default_value("60")
-                    .validator(|val| match val.parse::<u16>() {
-                        Ok(_) => Ok(()),
-                        Err(e) => Err(e.to_string()),
-                    })
+                    .value_parser(clap::value_parser!(u16))
                     .help("The TTL for the new DNS record"),
             )
             .arg(
@@ -95,14 +89,12 @@ impl Args {
             )
             .get_matches();
 
-        let literal_ip = matches
-            .value_of("ip")
-            .map(|x| x.parse::<IpAddr>().expect("Unable to parse IP address"));
-        let local = matches.is_present("local");
-        let rtype = matches.value_of("rtype").unwrap().to_string();
+        let literal_ip = matches.get_one::<IpAddr>("ip");
+        let local = matches.contains_id("local");
+        let rtype = matches.get_one::<String>("rtype").unwrap().clone();
 
         let ip = if let Some(lit) = literal_ip {
-            lit
+            *lit
         } else if local {
             ip_retriever::get_local_ip().expect("Unable to retrieve local IP address")
         } else {
@@ -116,18 +108,16 @@ impl Args {
         info!("Will publish IP address: {:?}", ip);
 
         Args {
-            record: matches.value_of("RECORD").unwrap().to_string(),
-            domain: matches.value_of("DOMAIN").unwrap().to_string(),
-            token: matches.value_of("token").unwrap().to_string(),
+            record: matches.get_one::<String>("RECORD").unwrap().clone(),
+            domain: matches.get_one::<String>("DOMAIN").unwrap().clone(),
+            token: matches.get_one::<String>("token").unwrap().clone(),
             ip,
             rtype,
-            ttl: matches
-                .value_of("ttl")
-                .unwrap()
-                .parse::<u16>()
+            ttl: *matches
+                .get_one::<u16>("ttl")
                 .expect("Must provide integer for ttl"),
-            quiet: matches.is_present("quiet"),
-            dry_run: matches.is_present("dry_run"),
+            quiet: matches.contains_id("quiet"),
+            dry_run: matches.contains_id("dry_run"),
         }
     }
 }
