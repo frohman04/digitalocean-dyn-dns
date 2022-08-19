@@ -1,6 +1,7 @@
 use std::net::IpAddr;
 
 use clap::{crate_name, crate_version};
+use tracing::info;
 
 use crate::ip_retriever;
 

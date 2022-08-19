@@ -1,13 +1,12 @@
 #![forbid(unsafe_code)]
 
 extern crate clap;
-extern crate env_logger;
-#[macro_use]
-extern crate log;
 extern crate reqwest;
 extern crate serde;
 #[cfg(not(test))]
 extern crate serde_json;
+extern crate tracing;
+extern crate tracing_subscriber;
 
 #[cfg(test)]
 extern crate mockito;
@@ -19,15 +18,21 @@ mod cli;
 mod digitalocean;
 mod ip_retriever;
 
-use env_logger::Env;
 use std::fmt::Formatter;
 use std::net::IpAddr;
+use tracing::{info, Level};
+use tracing_subscriber::FmtSubscriber;
 
 use crate::digitalocean::{DigitalOceanClient, DomainRecord};
 
 fn main() {
-    let env = Env::default().filter_or("MY_LOG_LEVEL", "info");
-    env_logger::init_from_env(env);
+    let ansi_enabled = fix_ansi_term();
+
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::INFO)
+        .with_ansi(ansi_enabled)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let args = cli::Args::parse_args();
     let client = digitalocean::DigitalOceanClientImpl::new(args.token);
@@ -40,6 +45,16 @@ fn main() {
         args.ip,
     )
     .expect("Encountered error while updating DNS record");
+}
+
+#[cfg(target_os = "windows")]
+fn fix_ansi_term() -> bool {
+    ansi_term::enable_ansi_support().map_or(false, |()| true)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn fix_ansi_term() -> bool {
+    true
 }
 
 fn run(
