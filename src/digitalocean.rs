@@ -69,7 +69,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
             let resp = ClientBuilder::new()
                 .build()
                 .unwrap()
-                .get(&url.clone())
+                .get(url.clone())
                 .header("Authorization", format!("Bearer {}", self.token))
                 .send()?
                 .json::<DomainsResp>()?;
@@ -109,7 +109,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
             let resp = ClientBuilder::new()
                 .build()
                 .unwrap()
-                .get(&url.clone())
+                .get(url.clone())
                 .header("Authorization", format!("Bearer {}", self.token))
                 .send()?
                 .json::<DomainRecordsResp>()?;
@@ -145,7 +145,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
         let resp = ClientBuilder::new()
             .build()
             .unwrap()
-            .put(&url)
+            .put(url)
             .header("Authorization", format!("Bearer {}", self.token))
             .json(&DomainRecordPutBody {
                 data: value.to_string(),
@@ -173,7 +173,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
         let resp = ClientBuilder::new()
             .build()
             .unwrap()
-            .post(&url)
+            .post(url)
             .header("Authorization", format!("Bearer {}", self.token))
             .json(&DomainRecordPostBody {
                 typ: rtype.to_string(),
