@@ -102,7 +102,7 @@ impl Args {
             let ip =
                 ip_retriever::get_external_ip().expect("Unable to retrieve external IP address");
             if (ip.is_ipv4() && rtype != "A") || (ip.is_ipv6() && rtype != "AAAA") {
-                panic!("Expected Rtype {} but got {:?}", rtype, ip)
+                panic!("Expected Rtype {rtype} but got {ip:?}")
             }
             ip
         };
