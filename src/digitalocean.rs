@@ -1,9 +1,6 @@
 use reqwest::blocking::ClientBuilder;
 use serde::{Deserialize, Serialize};
 
-#[cfg(test)]
-use mockito;
-
 use std::net::IpAddr;
 
 pub trait DigitalOceanClient {
@@ -40,19 +37,18 @@ pub struct DigitalOceanClientImpl {
 
 impl DigitalOceanClientImpl {
     pub fn new(token: String) -> DigitalOceanClientImpl {
-        #[cfg(not(test))]
-        let base_url = "https://api.digitalocean.com".to_string();
-        #[cfg(test)]
-        let base_url = mockito::server_url();
+        DigitalOceanClientImpl {
+            base_url: "https://api.digitalocean.com".to_string(),
+            force_https: true,
+            token,
+        }
+    }
 
-        #[cfg(not(test))]
-        let force_https = true;
-        #[cfg(test)]
-        let force_https = false;
-
+    #[cfg(test)]
+    pub fn new_for_test(token: String, base_url: String) -> DigitalOceanClientImpl {
         DigitalOceanClientImpl {
             base_url,
-            force_https,
+            force_https: false,
             token,
         }
     }
@@ -224,6 +220,18 @@ impl std::fmt::Display for Error {
     }
 }
 
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Request(_), Self::Request(_)) => false,
+            (Self::IpParse(e1), Self::IpParse(e2)) => e1.to_string() == e2.to_string(),
+            (Self::Update(e1), Self::Update(e2)) => e1 == e2,
+            (Self::Create(e1), Self::Create(e2)) => e1 == e2,
+            _ => false,
+        }
+    }
+}
+
 // common parts of responses for collections
 
 #[derive(Deserialize, Debug, Eq, PartialEq)]
@@ -346,12 +354,14 @@ struct DomainRecordPutBody {
 #[cfg(test)]
 mod test {
     use crate::digitalocean::{DigitalOceanClient, DigitalOceanClientImpl, Domain, DomainRecord};
-    use mockito::mock;
+    use mockito;
     use std::net::Ipv4Addr;
 
     #[test]
     fn test_get_domain_simple_found() {
-        let _m = mock("GET", "/v2/domains")
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/domains")
             .match_header("Authorization", "Bearer foo")
             .with_status(200)
             .with_header("Content-Type", "application/json")
@@ -378,15 +388,14 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new("foo".to_string())
-            .get_domain(&"yahoo.com".to_string())
-            .unwrap();
+        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
+            .get_domain(&"yahoo.com".to_string());
         assert_eq!(
-            Some(Domain {
+            Ok(Some(Domain {
                 name: "yahoo.com".to_string(),
                 ttl: 100,
                 zone_file: "oof".to_string()
-            }),
+            })),
             resp
         );
         _m.assert();
@@ -394,7 +403,9 @@ mod test {
 
     #[test]
     fn test_get_domain_paginated_found() {
-        let _m = mock("GET", "/v2/domains")
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/domains")
             .match_header("Authorization", "Bearer foo")
             .with_status(200)
             .with_header("Content-Type", "application/json")
@@ -412,14 +423,15 @@ mod test {
                     },
                     "links": {
                         "pages": {
-                            "next": format!("{}/v2/domains?page=2", mockito::server_url())
+                            "next": format!("{}/v2/domains?page=2", server.url())
                         }
                     }
                 }))
                 .unwrap(),
             )
             .create();
-        let _m_page2 = mock("GET", "/v2/domains?page=2")
+        let _m_page2 = server
+            .mock("GET", "/v2/domains?page=2")
             .match_header("Authorization", "Bearer foo")
             .with_status(200)
             .with_header("Content-Type", "application/json")
@@ -441,15 +453,14 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new("foo".to_string())
-            .get_domain(&"yahoo.com".to_string())
-            .unwrap();
+        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
+            .get_domain(&"yahoo.com".to_string());
         assert_eq!(
-            Some(Domain {
+            Ok(Some(Domain {
                 name: "yahoo.com".to_string(),
                 ttl: 100,
                 zone_file: "oof".to_string()
-            }),
+            })),
             resp
         );
         _m.assert();
@@ -458,7 +469,9 @@ mod test {
 
     #[test]
     fn test_get_domain_missing() {
-        let _m = mock("GET", "/v2/domains")
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/domains")
             .match_header("Authorization", "Bearer foo")
             .with_status(200)
             .with_header("Content-Type", "application/json")
@@ -474,16 +487,17 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new("foo".to_string())
-            .get_domain(&"yahoo.com".to_string())
-            .unwrap();
-        assert_eq!(None, resp);
+        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
+            .get_domain(&"yahoo.com".to_string());
+        assert_eq!(Ok(None), resp);
         _m.assert();
     }
 
     #[test]
     fn test_get_record_simple_found() {
-        let _m = mock("GET", "/v2/domains/google.com/records?type=A")
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/domains/google.com/records?type=A")
             .match_header("Authorization", "Bearer foo")
             .with_status(200)
             .with_header("Content-Type", "application/json")
@@ -524,15 +538,14 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new("foo".to_string())
+        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
             .get_record(
                 &"google.com".to_string(),
                 &"foo".to_string(),
                 &"A".to_string(),
-            )
-            .unwrap();
+            );
         assert_eq!(
-            Some(DomainRecord {
+            Ok(Some(DomainRecord {
                 id: 234,
                 typ: "A".to_string(),
                 name: "foo".to_string(),
@@ -543,7 +556,7 @@ mod test {
                 weight: None,
                 flags: None,
                 tag: None
-            }),
+            })),
             resp
         );
         _m.assert();
@@ -551,7 +564,9 @@ mod test {
 
     #[test]
     fn test_get_record_paginated_found() {
-        let _m = mock("GET", "/v2/domains/google.com/records?type=A")
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/domains/google.com/records?type=A")
             .match_header("Authorization", "Bearer foo")
             .with_status(200)
             .with_header("Content-Type", "application/json")
@@ -576,14 +591,15 @@ mod test {
                     },
                     "links": {
                         "pages": {
-                            "next": format!("{}/v2/domains/google.com/records?type=A&page=2", mockito::server_url())
+                            "next": format!("{}/v2/domains/google.com/records?type=A&page=2", server.url())
                         }
                     }
                 }))
                     .unwrap(),
             )
             .create();
-        let _m_page2 = mock("GET", "/v2/domains/google.com/records?type=A&page=2")
+        let _m_page2 = server
+            .mock("GET", "/v2/domains/google.com/records?type=A&page=2")
             .match_header("Authorization", "Bearer foo")
             .with_status(200)
             .with_header("Content-Type", "application/json")
@@ -612,15 +628,14 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new("foo".to_string())
+        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
             .get_record(
                 &"google.com".to_string(),
                 &"foo".to_string(),
                 &"A".to_string(),
-            )
-            .unwrap();
+            );
         assert_eq!(
-            Some(DomainRecord {
+            Ok(Some(DomainRecord {
                 id: 234,
                 typ: "A".to_string(),
                 name: "foo".to_string(),
@@ -631,7 +646,7 @@ mod test {
                 weight: None,
                 flags: None,
                 tag: None
-            }),
+            })),
             resp
         );
         _m.assert();
@@ -640,7 +655,9 @@ mod test {
 
     #[test]
     fn test_get_record_missing() {
-        let _m = mock("GET", "/v2/domains/google.com/records?type=A")
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/domains/google.com/records?type=A")
             .match_header("Authorization", "Bearer foo")
             .with_status(200)
             .with_header("Content-Type", "application/json")
@@ -656,20 +673,21 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new("foo".to_string())
+        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
             .get_record(
                 &"google.com".to_string(),
                 &"foo".to_string(),
                 &"A".to_string(),
-            )
-            .unwrap();
-        assert_eq!(None, resp);
+            );
+        assert_eq!(Ok(None), resp);
         _m.assert();
     }
 
     #[test]
     fn test_update_record() {
-        let _m = mock("PUT", "/v2/domains/google.com/records/234")
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("PUT", "/v2/domains/google.com/records/234")
             .match_header("Authorization", "Bearer foo")
             .match_header("Content-Type", "application/json")
             .match_body(mockito::Matcher::Json(json!({
@@ -708,15 +726,14 @@ mod test {
             flags: None,
             tag: None,
         };
-        let resp = DigitalOceanClientImpl::new("foo".to_string())
+        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
             .update_record(
                 &"google.com".to_string(),
                 &orig_record,
                 &Ipv4Addr::new(2, 3, 4, 5).into(),
-            )
-            .unwrap();
+            );
         assert_eq!(
-            DomainRecord {
+            Ok(DomainRecord {
                 id: 234,
                 typ: "A".to_string(),
                 name: "foo".to_string(),
@@ -727,7 +744,7 @@ mod test {
                 weight: None,
                 flags: None,
                 tag: None
-            },
+            }),
             resp
         );
         _m.assert();
@@ -735,7 +752,9 @@ mod test {
 
     #[test]
     fn test_create_record() {
-        let _m = mock("POST", "/v2/domains/google.com/records")
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("POST", "/v2/domains/google.com/records")
             .match_header("Authorization", "Bearer foo")
             .match_header("Content-Type", "application/json")
             .match_body(mockito::Matcher::Json(json!({
@@ -770,16 +789,15 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new("foo".to_string())
+        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
             .create_record(
                 &"google.com".to_string(),
                 &"foo".to_string(),
                 &"A".to_string(),
                 &Ipv4Addr::new(1, 2, 3, 4).into(),
-            )
-            .unwrap();
+            );
         assert_eq!(
-            DomainRecord {
+            Ok(DomainRecord {
                 id: 234,
                 typ: "A".to_string(),
                 name: "foo".to_string(),
@@ -790,7 +808,7 @@ mod test {
                 weight: None,
                 flags: None,
                 tag: None
-            },
+            }),
             resp
         );
         _m.assert();
