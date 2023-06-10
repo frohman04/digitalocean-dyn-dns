@@ -14,7 +14,7 @@ tracing = "~0.1.37"
 tracing-subscriber = "~0.3.17"
 
 [target.'cfg(windows)'.dependencies]
-nu-ansi-term = "~0.47.0"
+nu-ansi-term = "~0.48.0"
 
 [dev-dependencies]
 mockito = "~1.0.2"
