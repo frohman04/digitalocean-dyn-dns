@@ -25,6 +25,7 @@ jobs:
           toolchain: stable
           profile: minimal
           override: true
+
       - name: test
         uses: actions-rs/cargo@v1
         with:
@@ -53,6 +54,7 @@ jobs:
           toolchain: stable
           profile: minimal
           override: true
+
       - name: get_release_version
         id: get_version
         run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
@@ -91,6 +93,7 @@ jobs:
           profile: minimal
           target: armv7-unknown-linux-gnueabihf
           override: true
+
       - name: get_release_version
         id: get_version
         run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
