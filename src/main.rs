@@ -96,6 +96,7 @@ fn run(
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 enum Error {
     Client(digitalocean::Error),
