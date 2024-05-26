@@ -91,14 +91,17 @@ impl Args {
             .get_matches();
 
         let literal_ip = matches.get_one::<IpAddr>("ip");
-        let local = matches.contains_id("local");
+        let local = matches.get_flag("local");
         let rtype = matches.get_one::<String>("rtype").unwrap().clone();
 
         let ip = if let Some(lit) = literal_ip {
+            info!("Using user-provided IP address: {}", lit);
             *lit
         } else if local {
+            info!("Getting local IP address of machine...");
             ip_retriever::get_local_ip().expect("Unable to retrieve local IP address")
         } else {
+            info!("Getting public IP address of machine...");
             let ip =
                 ip_retriever::get_external_ip().expect("Unable to retrieve external IP address");
             if (ip.is_ipv4() && rtype != "A") || (ip.is_ipv6() && rtype != "AAAA") {
@@ -117,8 +120,8 @@ impl Args {
             ttl: *matches
                 .get_one::<u16>("ttl")
                 .expect("Must provide integer for ttl"),
-            quiet: matches.contains_id("quiet"),
-            dry_run: matches.contains_id("dry_run"),
+            quiet: matches.get_flag("quiet"),
+            dry_run: matches.get_flag("dry_run"),
         }
     }
 }
