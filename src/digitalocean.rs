@@ -2,6 +2,7 @@ use reqwest::blocking::ClientBuilder;
 use serde::{Deserialize, Serialize};
 
 use std::net::IpAddr;
+use tracing::info;
 
 pub trait DigitalOceanClient {
     fn get_domain(&self, domain: &str) -> Result<Option<Domain>, Error>;
@@ -18,6 +19,7 @@ pub trait DigitalOceanClient {
         domain: &str,
         record: &DomainRecord,
         value: &IpAddr,
+        dry_run: &bool,
     ) -> Result<DomainRecord, Error>;
 
     fn create_record(
@@ -26,6 +28,7 @@ pub trait DigitalOceanClient {
         record: &str,
         rtype: &str,
         value: &IpAddr,
+        dry_run: &bool,
     ) -> Result<DomainRecord, Error>;
 }
 
@@ -133,27 +136,47 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
         domain: &str,
         record: &DomainRecord,
         value: &IpAddr,
+        dry_run: &bool,
     ) -> Result<DomainRecord, Error> {
-        let url = format!(
-            "{}/v2/domains/{}/records/{}",
-            self.base_url, domain, record.id
-        );
-        let resp = ClientBuilder::new()
-            .build()
-            .unwrap()
-            .put(url)
-            .header("Authorization", format!("Bearer {}", self.token))
-            .json(&DomainRecordPutBody {
-                data: value.to_string(),
+        if *dry_run {
+            info!(
+                "DRY RUN: Updating record for {}.{} to {}",
+                record.name, domain, value
+            );
+            Ok(DomainRecord {
+                id: 0,
+                typ: "".to_string(),
+                name: "".to_string(),
+                data: "".to_string(),
+                priority: None,
+                port: None,
+                ttl: 0,
+                weight: None,
+                flags: None,
+                tag: None,
             })
-            .send()?
-            .json::<DomainRecordsModifyResp>()?;
-        if resp.domain_record.data.parse::<IpAddr>()? == *value {
-            Ok(resp.domain_record)
         } else {
-            Err(Error::Update(
-                "New IP address not reflected in updated DNS record".to_string(),
-            ))
+            let url = format!(
+                "{}/v2/domains/{}/records/{}",
+                self.base_url, domain, record.id
+            );
+            let resp = ClientBuilder::new()
+                .build()
+                .unwrap()
+                .put(url)
+                .header("Authorization", format!("Bearer {}", self.token))
+                .json(&DomainRecordPutBody {
+                    data: value.to_string(),
+                })
+                .send()?
+                .json::<DomainRecordsModifyResp>()?;
+            if resp.domain_record.data.parse::<IpAddr>()? == *value {
+                Ok(resp.domain_record)
+            } else {
+                Err(Error::Update(
+                    "New IP address not reflected in updated DNS record".to_string(),
+                ))
+            }
         }
     }
 
@@ -164,32 +187,52 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
         record: &str,
         rtype: &str,
         value: &IpAddr,
+        dry_run: &bool,
     ) -> Result<DomainRecord, Error> {
-        let url = format!("{}/v2/domains/{}/records", self.base_url, domain);
-        let resp = ClientBuilder::new()
-            .build()
-            .unwrap()
-            .post(url)
-            .header("Authorization", format!("Bearer {}", self.token))
-            .json(&DomainRecordPostBody {
-                typ: rtype.to_string(),
-                name: record.to_string(),
-                data: value.to_string(),
+        if *dry_run {
+            info!(
+                "DRY RUN: Create {} record for {}.{} to {}",
+                rtype, record, domain, value
+            );
+            Ok(DomainRecord {
+                id: 0,
+                typ: "".to_string(),
+                name: "".to_string(),
+                data: "".to_string(),
                 priority: None,
                 port: None,
-                ttl: 60,
+                ttl: 0,
                 weight: None,
                 flags: None,
                 tag: None,
             })
-            .send()?
-            .json::<DomainRecordsModifyResp>()?;
-        if resp.domain_record.data.parse::<IpAddr>()? == *value {
-            Ok(resp.domain_record)
         } else {
-            Err(Error::Create(
-                "New IP address not reflected in new DNS record".to_string(),
-            ))
+            let url = format!("{}/v2/domains/{}/records", self.base_url, domain);
+            let resp = ClientBuilder::new()
+                .build()
+                .unwrap()
+                .post(url)
+                .header("Authorization", format!("Bearer {}", self.token))
+                .json(&DomainRecordPostBody {
+                    typ: rtype.to_string(),
+                    name: record.to_string(),
+                    data: value.to_string(),
+                    priority: None,
+                    port: None,
+                    ttl: 60,
+                    weight: None,
+                    flags: None,
+                    tag: None,
+                })
+                .send()?
+                .json::<DomainRecordsModifyResp>()?;
+            if resp.domain_record.data.parse::<IpAddr>()? == *value {
+                Ok(resp.domain_record)
+            } else {
+                Err(Error::Create(
+                    "New IP address not reflected in new DNS record".to_string(),
+                ))
+            }
         }
     }
 }
@@ -731,6 +774,7 @@ mod test {
                 &"google.com".to_string(),
                 &orig_record,
                 &Ipv4Addr::new(2, 3, 4, 5).into(),
+                &false,
             );
         assert_eq!(
             Ok(DomainRecord {
@@ -795,6 +839,7 @@ mod test {
                 &"foo".to_string(),
                 &"A".to_string(),
                 &Ipv4Addr::new(1, 2, 3, 4).into(),
+                &false,
             );
         assert_eq!(
             Ok(DomainRecord {

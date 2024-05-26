@@ -43,6 +43,7 @@ fn main() {
         args.record,
         args.rtype,
         args.ip,
+        args.dry_run,
     )
     .expect("Encountered error while updating DNS record");
 }
@@ -63,6 +64,7 @@ fn run(
     record_name: String,
     rtype: String,
     ip: IpAddr,
+    dry_run: bool,
 ) -> Result<DomainRecord, Error> {
     client.get_domain(&domain)?.ok_or(Error::DomainNotFound())?;
     match client.get_record(&domain, &record_name, &rtype)? {
@@ -79,7 +81,7 @@ fn run(
                     "Will update record_name {}.{} ({}) to {}",
                     record_name, domain, rtype, ip
                 );
-                let record = client.update_record(&domain, &record, &ip)?;
+                let record = client.update_record(&domain, &record, &ip, &dry_run)?;
                 info!("Successfully updated record!");
                 Ok(record)
             }
@@ -89,7 +91,7 @@ fn run(
                 "Will create new record {}.{} ({}) -> {}",
                 record_name, domain, rtype, ip
             );
-            let record = client.create_record(&domain, &record_name, &rtype, &ip)?;
+            let record = client.create_record(&domain, &record_name, &rtype, &ip, &dry_run)?;
             info!("Successfully created new record! ({})", record.id);
             Ok(record)
         }
@@ -156,6 +158,7 @@ mod test {
             record_name.clone(),
             rtype.clone(),
             ip_addr.clone(),
+            false,
         );
 
         assert_eq!(
@@ -204,6 +207,7 @@ mod test {
             record_name.clone(),
             rtype.clone(),
             new_ip_addr.clone(),
+            false,
         );
 
         assert_eq!(
@@ -252,6 +256,7 @@ mod test {
             record_name.clone(),
             rtype.clone(),
             new_ip_addr.clone(),
+            false,
         );
 
         assert_eq!(
@@ -330,6 +335,7 @@ mod test {
             _: &str,
             record: &DomainRecord,
             value: &IpAddr,
+            _dry_run: &bool,
         ) -> Result<DomainRecord, Error> {
             if self.update_record_is_ok {
                 Ok(DomainRecord {
@@ -355,6 +361,7 @@ mod test {
             record: &str,
             rtype: &str,
             value: &IpAddr,
+            _dry_run: &bool,
         ) -> Result<DomainRecord, Error> {
             if self.create_record_is_ok {
                 Ok(DomainRecord {
