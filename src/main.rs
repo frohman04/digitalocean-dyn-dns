@@ -18,6 +18,7 @@ mod cli;
 mod digitalocean;
 mod ip_retriever;
 
+use crate::cli::SubcmdArgs;
 use std::fmt::Formatter;
 use std::net::IpAddr;
 use tracing::{info, Level};
@@ -37,15 +38,18 @@ fn main() {
     let args = cli::Args::parse_args();
     let client = digitalocean::DigitalOceanClientImpl::new(args.token);
 
-    run(
-        Box::new(client),
-        args.domain,
-        args.record,
-        args.rtype,
-        args.ip,
-        args.dry_run,
-    )
-    .expect("Encountered error while updating DNS record");
+    match args.subcmd_args {
+        SubcmdArgs::Dns(dns_args) => run_dns(
+            Box::new(client),
+            dns_args.domain,
+            dns_args.record,
+            dns_args.rtype,
+            args.ip,
+            dns_args.ttl,
+            args.dry_run,
+        )
+        .expect("Encountered error while updating DNS record"),
+    };
 }
 
 #[cfg(target_os = "windows")]
@@ -58,12 +62,13 @@ fn fix_ansi_term() -> bool {
     true
 }
 
-fn run(
+fn run_dns(
     client: Box<dyn DigitalOceanClient>,
     domain: String,
     record_name: String,
     rtype: String,
     ip: IpAddr,
+    ttl: u16,
     dry_run: bool,
 ) -> Result<DomainRecord, Error> {
     client.get_domain(&domain)?.ok_or(Error::DomainNotFound())?;
@@ -81,7 +86,7 @@ fn run(
                     "Will update record_name {}.{} ({}) to {}",
                     record_name, domain, rtype, ip
                 );
-                let record = client.update_record(&domain, &record, &ip, &dry_run)?;
+                let record = client.update_record(&domain, &record, &ip, &ttl, &dry_run)?;
                 info!("Successfully updated record!");
                 Ok(record)
             }
@@ -91,7 +96,8 @@ fn run(
                 "Will create new record {}.{} ({}) -> {}",
                 record_name, domain, rtype, ip
             );
-            let record = client.create_record(&domain, &record_name, &rtype, &ip, &dry_run)?;
+            let record =
+                client.create_record(&domain, &record_name, &rtype, &ip, &ttl, &dry_run)?;
             info!("Successfully created new record! ({})", record.id);
             Ok(record)
         }
@@ -127,7 +133,7 @@ impl std::fmt::Display for Error {
 #[cfg(test)]
 mod test {
     use crate::digitalocean::{DigitalOceanClient, Domain, DomainRecord, Error};
-    use crate::run;
+    use crate::run_dns;
     use std::net::{IpAddr, Ipv4Addr};
 
     #[test]
@@ -152,12 +158,13 @@ mod test {
             create_record_is_ok: true,
         };
 
-        let record = run(
+        let record = run_dns(
             Box::new(client),
             domain.clone(),
             record_name.clone(),
             rtype.clone(),
             ip_addr.clone(),
+            60,
             false,
         );
 
@@ -201,12 +208,13 @@ mod test {
             create_record_is_ok: false,
         };
 
-        let record = run(
+        let record = run_dns(
             Box::new(client),
             domain.clone(),
             record_name.clone(),
             rtype.clone(),
             new_ip_addr.clone(),
+            60,
             false,
         );
 
@@ -250,12 +258,13 @@ mod test {
             create_record_is_ok: false,
         };
 
-        let record = run(
+        let record = run_dns(
             Box::new(client),
             domain.clone(),
             record_name.clone(),
             rtype.clone(),
             new_ip_addr.clone(),
+            60,
             false,
         );
 
@@ -335,6 +344,7 @@ mod test {
             _: &str,
             record: &DomainRecord,
             value: &IpAddr,
+            ttl: &u16,
             _dry_run: &bool,
         ) -> Result<DomainRecord, Error> {
             if self.update_record_is_ok {
@@ -345,7 +355,7 @@ mod test {
                     data: (*value).to_string(),
                     priority: None,
                     port: None,
-                    ttl: record.ttl.clone(),
+                    ttl: *ttl,
                     weight: None,
                     flags: None,
                     tag: None,
@@ -361,6 +371,7 @@ mod test {
             record: &str,
             rtype: &str,
             value: &IpAddr,
+            ttl: &u16,
             _dry_run: &bool,
         ) -> Result<DomainRecord, Error> {
             if self.create_record_is_ok {
@@ -371,7 +382,7 @@ mod test {
                     data: (*value).to_string(),
                     priority: None,
                     port: None,
-                    ttl: 60,
+                    ttl: *ttl,
                     weight: None,
                     flags: None,
                     tag: None,

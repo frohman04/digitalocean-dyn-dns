@@ -19,6 +19,7 @@ pub trait DigitalOceanClient {
         domain: &str,
         record: &DomainRecord,
         value: &IpAddr,
+        ttl: &u16,
         dry_run: &bool,
     ) -> Result<DomainRecord, Error>;
 
@@ -28,6 +29,7 @@ pub trait DigitalOceanClient {
         record: &str,
         rtype: &str,
         value: &IpAddr,
+        ttl: &u16,
         dry_run: &bool,
     ) -> Result<DomainRecord, Error>;
 }
@@ -136,6 +138,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
         domain: &str,
         record: &DomainRecord,
         value: &IpAddr,
+        ttl: &u16,
         dry_run: &bool,
     ) -> Result<DomainRecord, Error> {
         if *dry_run {
@@ -150,7 +153,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
                 data: "".to_string(),
                 priority: None,
                 port: None,
-                ttl: 0,
+                ttl: *ttl,
                 weight: None,
                 flags: None,
                 tag: None,
@@ -187,6 +190,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
         record: &str,
         rtype: &str,
         value: &IpAddr,
+        ttl: &u16,
         dry_run: &bool,
     ) -> Result<DomainRecord, Error> {
         if *dry_run {
@@ -201,7 +205,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
                 data: "".to_string(),
                 priority: None,
                 port: None,
-                ttl: 0,
+                ttl: *ttl,
                 weight: None,
                 flags: None,
                 tag: None,
@@ -747,7 +751,7 @@ mod test {
                         "data": "2.3.4.5",
                         "priority": null,
                         "port": null,
-                        "ttl": 100,
+                        "ttl": 60,
                         "weight": null,
                         "flags": null,
                         "tag": null
@@ -774,6 +778,7 @@ mod test {
                 &"google.com".to_string(),
                 &orig_record,
                 &Ipv4Addr::new(2, 3, 4, 5).into(),
+                &60,
                 &false,
             );
         assert_eq!(
@@ -784,7 +789,7 @@ mod test {
                 data: "2.3.4.5".to_string(),
                 priority: None,
                 port: None,
-                ttl: 100,
+                ttl: 60,
                 weight: None,
                 flags: None,
                 tag: None
@@ -823,7 +828,7 @@ mod test {
                         "data": "1.2.3.4",
                         "priority": null,
                         "port": null,
-                        "ttl": 60,
+                        "ttl": 100,
                         "weight": null,
                         "flags": null,
                         "tag": null
@@ -839,6 +844,7 @@ mod test {
                 &"foo".to_string(),
                 &"A".to_string(),
                 &Ipv4Addr::new(1, 2, 3, 4).into(),
+                &100,
                 &false,
             );
         assert_eq!(
@@ -849,7 +855,7 @@ mod test {
                 data: "1.2.3.4".to_string(),
                 priority: None,
                 port: None,
-                ttl: 60,
+                ttl: 100,
                 weight: None,
                 flags: None,
                 tag: None

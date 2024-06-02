@@ -11,5 +11,5 @@ else
     BUILD=zigbuild
 fi
 cargo ${BUILD} --release --target aarch64-unknown-linux-gnu
-scp target/aarch64-unknown-linux-gnu/release/digitalocean-dyn-dns gilneas:~
-ssh gilneas -- "chmod +x ~/digitalocean-dyn-dns && sudo mv ~/digitalocean-dyn-dns /usr/local/bin/digitalocean-dyn-dns && sudo systemctl restart digitalocean-dyn-dns.service"
+scp digitalocean-dyn-dns.service target/aarch64-unknown-linux-gnu/release/digitalocean-dyn-dns gilneas:~
+ssh gilneas -- "chmod +x ~/digitalocean-dyn-dns && sudo mv ~/digitalocean-dyn-dns /usr/local/bin/digitalocean-dyn-dns && sudo mv ~/digitalocean-dyn-dns.service  /etc/systemd/system/digitalocean-dyn-dns.service; sudo systemctl daemon-reload && sudo systemctl restart digitalocean-dyn-dns.service"
