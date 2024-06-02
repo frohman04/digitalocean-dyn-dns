@@ -45,6 +45,7 @@ fn main() {
             dns_args.record,
             dns_args.rtype,
             args.ip,
+            dns_args.ttl,
             args.dry_run,
         )
         .expect("Encountered error while updating DNS record"),
@@ -67,6 +68,7 @@ fn run_dns(
     record_name: String,
     rtype: String,
     ip: IpAddr,
+    ttl: u16,
     dry_run: bool,
 ) -> Result<DomainRecord, Error> {
     client.get_domain(&domain)?.ok_or(Error::DomainNotFound())?;
@@ -84,7 +86,7 @@ fn run_dns(
                     "Will update record_name {}.{} ({}) to {}",
                     record_name, domain, rtype, ip
                 );
-                let record = client.update_record(&domain, &record, &ip, &dry_run)?;
+                let record = client.update_record(&domain, &record, &ip, &ttl, &dry_run)?;
                 info!("Successfully updated record!");
                 Ok(record)
             }
@@ -94,7 +96,8 @@ fn run_dns(
                 "Will create new record {}.{} ({}) -> {}",
                 record_name, domain, rtype, ip
             );
-            let record = client.create_record(&domain, &record_name, &rtype, &ip, &dry_run)?;
+            let record =
+                client.create_record(&domain, &record_name, &rtype, &ip, &ttl, &dry_run)?;
             info!("Successfully created new record! ({})", record.id);
             Ok(record)
         }
@@ -161,6 +164,7 @@ mod test {
             record_name.clone(),
             rtype.clone(),
             ip_addr.clone(),
+            60,
             false,
         );
 
@@ -210,6 +214,7 @@ mod test {
             record_name.clone(),
             rtype.clone(),
             new_ip_addr.clone(),
+            60,
             false,
         );
 
@@ -259,6 +264,7 @@ mod test {
             record_name.clone(),
             rtype.clone(),
             new_ip_addr.clone(),
+            60,
             false,
         );
 
@@ -338,6 +344,7 @@ mod test {
             _: &str,
             record: &DomainRecord,
             value: &IpAddr,
+            ttl: &u16,
             _dry_run: &bool,
         ) -> Result<DomainRecord, Error> {
             if self.update_record_is_ok {
@@ -348,7 +355,7 @@ mod test {
                     data: (*value).to_string(),
                     priority: None,
                     port: None,
-                    ttl: record.ttl.clone(),
+                    ttl: *ttl,
                     weight: None,
                     flags: None,
                     tag: None,
@@ -364,6 +371,7 @@ mod test {
             record: &str,
             rtype: &str,
             value: &IpAddr,
+            ttl: &u16,
             _dry_run: &bool,
         ) -> Result<DomainRecord, Error> {
             if self.create_record_is_ok {
@@ -374,7 +382,7 @@ mod test {
                     data: (*value).to_string(),
                     priority: None,
                     port: None,
-                    ttl: 60,
+                    ttl: *ttl,
                     weight: None,
                     flags: None,
                     tag: None,
