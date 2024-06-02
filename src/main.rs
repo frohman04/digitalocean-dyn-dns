@@ -18,6 +18,7 @@ mod cli;
 mod digitalocean;
 mod ip_retriever;
 
+use crate::cli::SubcmdArgs;
 use std::fmt::Formatter;
 use std::net::IpAddr;
 use tracing::{info, Level};
@@ -37,15 +38,17 @@ fn main() {
     let args = cli::Args::parse_args();
     let client = digitalocean::DigitalOceanClientImpl::new(args.token);
 
-    run(
-        Box::new(client),
-        args.domain,
-        args.record,
-        args.rtype,
-        args.ip,
-        args.dry_run,
-    )
-    .expect("Encountered error while updating DNS record");
+    match args.subcmd_args {
+        SubcmdArgs::Dns(dns_args) => run_dns(
+            Box::new(client),
+            dns_args.domain,
+            dns_args.record,
+            dns_args.rtype,
+            args.ip,
+            args.dry_run,
+        )
+        .expect("Encountered error while updating DNS record"),
+    };
 }
 
 #[cfg(target_os = "windows")]
@@ -58,7 +61,7 @@ fn fix_ansi_term() -> bool {
     true
 }
 
-fn run(
+fn run_dns(
     client: Box<dyn DigitalOceanClient>,
     domain: String,
     record_name: String,
@@ -127,7 +130,7 @@ impl std::fmt::Display for Error {
 #[cfg(test)]
 mod test {
     use crate::digitalocean::{DigitalOceanClient, Domain, DomainRecord, Error};
-    use crate::run;
+    use crate::run_dns;
     use std::net::{IpAddr, Ipv4Addr};
 
     #[test]
@@ -152,7 +155,7 @@ mod test {
             create_record_is_ok: true,
         };
 
-        let record = run(
+        let record = run_dns(
             Box::new(client),
             domain.clone(),
             record_name.clone(),
@@ -201,7 +204,7 @@ mod test {
             create_record_is_ok: false,
         };
 
-        let record = run(
+        let record = run_dns(
             Box::new(client),
             domain.clone(),
             record_name.clone(),
@@ -250,7 +253,7 @@ mod test {
             create_record_is_ok: false,
         };
 
-        let record = run(
+        let record = run_dns(
             Box::new(client),
             domain.clone(),
             record_name.clone(),
