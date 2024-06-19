@@ -30,15 +30,17 @@ pub struct DnsArgs {
 #[derive(Debug)]
 pub struct FirewallArgs {
     pub name: String,
-    pub port: Port,
+    pub direction: Direction,
+    pub port: String,
+    pub protocol: String,
     pub addresses: Vec<String>,
     pub droplets: Vec<String>,
 }
 
 #[derive(Debug)]
-pub enum Port {
-    Inbound(String),
-    Outbound(String),
+pub enum Direction {
+    Inbound,
+    Outbound,
 }
 
 impl Args {
@@ -124,6 +126,13 @@ impl Args {
                             .help("The port or port range of the firewall rule to update"),
                     )
                     .arg(
+                        clap::Arg::new("PROTOCOL")
+                            .required(true)
+                            .num_args(1)
+                            .value_parser(["tcp", "udp", "icmp"])
+                            .help("The protocol of the firewall rule to update"),
+                    )
+                    .arg(
                         clap::Arg::new("inbound")
                             .long("inbound")
                             .num_args(0)
@@ -193,7 +202,6 @@ impl Args {
                 })
             }
             Some(("firewall", sub_match)) => {
-                let port = sub_match.get_one::<String>("PORT").unwrap().clone();
                 let addresses = sub_match
                     .get_one::<String>("addresses")
                     .map_or(Vec::new(), |raw| {
@@ -206,11 +214,13 @@ impl Args {
                     });
                 SubcmdArgs::Firewall(FirewallArgs {
                     name: sub_match.get_one::<String>("NAME").unwrap().clone(),
-                    port: match sub_match.get_one::<Id>("direction").unwrap().as_str() {
-                        "inbound" => Port::Inbound(port),
-                        "outbound" => Port::Outbound(port),
-                        _ => panic!("No direction specified for port"),
+                    direction: match sub_match.get_one::<Id>("direction").unwrap().as_str() {
+                        "inbound" => Direction::Inbound,
+                        "outbound" => Direction::Outbound,
+                        _ => panic!("No direction specified"),
                     },
+                    port: sub_match.get_one::<String>("PORT").unwrap().clone(),
+                    protocol: sub_match.get_one::<String>("PROTOCOL").unwrap().clone(),
                     addresses,
                     droplets,
                 })

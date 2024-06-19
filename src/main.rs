@@ -20,7 +20,7 @@ use std::net::IpAddr;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
-use crate::cli::{Port, SubcmdArgs};
+use crate::cli::{Direction, SubcmdArgs};
 use crate::digitalocean::dns::{DigitalOceanDnsClient, DomainRecord};
 use crate::digitalocean::droplet::{DigitalOceanDropletClient, Droplet};
 use crate::digitalocean::firewall::{DigitalOceanFirewallClient, Firewall};
@@ -59,7 +59,9 @@ fn main() {
                 client.firewall,
                 client.droplet,
                 fw_args.name,
+                fw_args.direction,
                 fw_args.port,
+                fw_args.protocol,
                 fw_args.addresses,
                 fw_args.droplets,
                 args.ip,
@@ -127,34 +129,40 @@ fn run_firewall(
     fw_client: Box<dyn DigitalOceanFirewallClient>,
     droplet_client: Box<dyn DigitalOceanDropletClient>,
     name: String,
-    port: Port,
+    direction: Direction,
+    port: String,
+    protocol: String,
     addresses: Vec<String>,
     droplet_names: Vec<String>,
-    _ip: IpAddr,
+    ip: IpAddr,
     _dry_run: bool,
 ) -> Result<Firewall, Error> {
     match fw_client.get_firewall(name)? {
         Some(firewall) => {
-            println!("firewall: {:?}", firewall);
-
-            match port {
-                Port::Inbound(inbound_port) => println!(
+            match direction {
+                Direction::Inbound => println!(
                     "inbound port: {:?}",
                     match firewall.inbound_rules {
-                        Some(ref rules) => rules.iter().find(|x| x.ports == inbound_port),
+                        Some(ref rules) => rules
+                            .iter()
+                            .find(|x| x.ports == port && x.protocol == protocol),
                         None => panic!("No inbound_rules available"),
                     }
                 ),
-                Port::Outbound(outbound_port) => println!(
+                Direction::Outbound => println!(
                     "outbound port: {:?}",
                     match firewall.outbound_rules {
-                        Some(ref rules) => rules.iter().find(|x| x.ports == outbound_port),
+                        Some(ref rules) => rules
+                            .iter()
+                            .find(|x| x.ports == port && x.protocol == protocol),
                         None => panic!("No outbound_rules available"),
                     }
                 ),
             };
 
-            println!("allowed addresses: {:?}", addresses);
+            let mut all_addresses = addresses.clone();
+            all_addresses.push(ip.to_string());
+            println!("allowed addresses: {:?}", all_addresses);
 
             println!("allowed droplets (name): {:?}", droplet_names);
             if !droplet_names.is_empty() {
