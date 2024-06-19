@@ -1,6 +1,6 @@
 use std::net::IpAddr;
 
-use clap::{crate_name, crate_version};
+use clap::{crate_name, crate_version, Id};
 use tracing::info;
 
 use crate::ip_retriever;
@@ -30,6 +30,13 @@ pub struct DnsArgs {
 #[derive(Debug)]
 pub struct FirewallArgs {
     pub name: String,
+    pub port: Port,
+}
+
+#[derive(Debug)]
+pub enum Port {
+    Inbound(String),
+    Outbound(String),
 }
 
 impl Args {
@@ -101,12 +108,36 @@ impl Args {
                     ),
             )
             .subcommand(
-                clap::Command::new("firewall").arg(
-                    clap::Arg::new("NAME")
-                        .required(true)
-                        .num_args(1)
-                        .help("The name of the firewall to update"),
-                ),
+                clap::Command::new("firewall")
+                    .arg(
+                        clap::Arg::new("NAME")
+                            .required(true)
+                            .num_args(1)
+                            .help("The name of the firewall to update"),
+                    )
+                    .arg(
+                        clap::Arg::new("PORT")
+                            .required(true)
+                            .num_args(1)
+                            .help("The port or port range of the firewall rule to update"),
+                    )
+                    .arg(
+                        clap::Arg::new("inbound")
+                            .long("inbound")
+                            .num_args(0)
+                            .help("Update the inbound rule for the specified port"),
+                    )
+                    .arg(
+                        clap::Arg::new("outbound")
+                            .long("outbound")
+                            .num_args(0)
+                            .help("Update the outbound rule for the specified port"),
+                    )
+                    .group(
+                        clap::ArgGroup::new("direction")
+                            .args(["inbound", "outbound"])
+                            .required(true),
+                    ),
             )
             .subcommand_required(true)
             .get_matches();
@@ -142,9 +173,17 @@ impl Args {
                         .expect("Must provide integer for ttl"),
                 })
             }
-            Some(("firewall", sub_match)) => SubcmdArgs::Firewall(FirewallArgs {
-                name: sub_match.get_one::<String>("NAME").unwrap().clone(),
-            }),
+            Some(("firewall", sub_match)) => {
+                let port = sub_match.get_one::<String>("PORT").unwrap().clone();
+                SubcmdArgs::Firewall(FirewallArgs {
+                    name: sub_match.get_one::<String>("NAME").unwrap().clone(),
+                    port: match sub_match.get_one::<Id>("direction").unwrap().as_str() {
+                        "inbound" => Port::Inbound(port),
+                        "outbound" => Port::Outbound(port),
+                        _ => panic!("No direction specified for port"),
+                    },
+                })
+            }
             // these situations should be impossible, but Rust can't tell since the subcommand
             // matches are stringly-typed and it can't tell that we require a subcommand
             Some((cmd, _)) => panic!("Unknown subcommand detected: {}", cmd),

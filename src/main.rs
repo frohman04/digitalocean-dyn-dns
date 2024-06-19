@@ -19,7 +19,7 @@ use std::net::IpAddr;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
-use crate::cli::SubcmdArgs;
+use crate::cli::{Port, SubcmdArgs};
 use crate::digitalocean::dns::{DigitalOceanDnsClient, DomainRecord};
 use crate::digitalocean::firewall::{DigitalOceanFirewallClient, Firewall};
 
@@ -53,8 +53,14 @@ fn main() {
             .expect("Encountered error while updating DNS record");
         }
         SubcmdArgs::Firewall(fw_args) => {
-            run_firewall(client.firewall, fw_args.name, args.ip, args.dry_run)
-                .expect("Enountered error while updating firewall");
+            run_firewall(
+                client.firewall,
+                fw_args.name,
+                fw_args.port,
+                args.ip,
+                args.dry_run,
+            )
+            .expect("Enountered error while updating firewall");
         }
     };
 }
@@ -114,12 +120,29 @@ fn run_dns(
 fn run_firewall(
     client: Box<dyn DigitalOceanFirewallClient>,
     name: String,
+    port: Port,
     _ip: IpAddr,
     _dry_run: bool,
 ) -> Result<Firewall, Error> {
     match client.get_firewall(name)? {
         Some(firewall) => {
             println!("{:?}", firewall);
+            match port {
+                Port::Inbound(inbound_port) => println!(
+                    "{:?}",
+                    match firewall.inbound_rules {
+                        Some(ref rules) => rules.iter().find(|x| x.ports == inbound_port),
+                        None => panic!("No inbound_rules available"),
+                    }
+                ),
+                Port::Outbound(outbound_port) => println!(
+                    "{:?}",
+                    match firewall.outbound_rules {
+                        Some(ref rules) => rules.iter().find(|x| x.ports == outbound_port),
+                        None => panic!("No outbound_rules available"),
+                    }
+                ),
+            };
             Ok(firewall)
         }
         None => Err(Error::FirewallNotFound()),
