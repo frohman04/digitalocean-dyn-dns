@@ -24,7 +24,7 @@ use std::net::IpAddr;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
-use crate::digitalocean::{DigitalOceanClient, DomainRecord};
+use crate::digitalocean::{DigitalOceanDnsClient, DomainRecord};
 
 fn main() {
     let ansi_enabled = fix_ansi_term();
@@ -36,11 +36,11 @@ fn main() {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let args = cli::Args::parse_args();
-    let client = digitalocean::DigitalOceanClientImpl::new(args.token);
+    let client = digitalocean::DigitalOceanClient::new(args.token);
 
     match args.subcmd_args {
         SubcmdArgs::Dns(dns_args) => run_dns(
-            Box::new(client),
+            client.dns,
             dns_args.domain,
             dns_args.record,
             dns_args.rtype,
@@ -63,7 +63,7 @@ fn fix_ansi_term() -> bool {
 }
 
 fn run_dns(
-    client: Box<dyn DigitalOceanClient>,
+    client: Box<dyn DigitalOceanDnsClient>,
     domain: String,
     record_name: String,
     rtype: String,
@@ -132,7 +132,7 @@ impl std::fmt::Display for Error {
 
 #[cfg(test)]
 mod test {
-    use crate::digitalocean::{DigitalOceanClient, Domain, DomainRecord, Error};
+    use crate::digitalocean::{DigitalOceanDnsClient, Domain, DomainRecord, Error};
     use crate::run_dns;
     use std::net::{IpAddr, Ipv4Addr};
 
@@ -299,7 +299,7 @@ mod test {
         create_record_is_ok: bool,
     }
 
-    impl DigitalOceanClient for TestClientImpl {
+    impl DigitalOceanDnsClient for TestClientImpl {
         fn get_domain(&self, _: &str) -> Result<Option<Domain>, Error> {
             if self.get_domain_is_ok {
                 if self.get_domain_is_some {
