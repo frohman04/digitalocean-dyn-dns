@@ -242,6 +242,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum Error {
     Request(reqwest::Error),
     IpParse(std::net::AddrParseError),

@@ -9,7 +9,6 @@ use crate::ip_retriever;
 pub struct Args {
     pub token: String,
     pub ip: IpAddr,
-    pub quiet: bool,
     pub dry_run: bool,
     pub subcmd_args: SubcmdArgs,
 }
@@ -55,13 +54,6 @@ impl Args {
                     .conflicts_with("local")
                     .value_parser(clap::value_parser!(IpAddr))
                     .help("Use this IP address when updating the record"),
-            )
-            .arg(
-                clap::Arg::new("quiet")
-                    .short('q')
-                    .long("quiet")
-                    .num_args(0)
-                    .help("Only display output on IP change"),
             )
             .arg(
                 clap::Arg::new("dry_run")
@@ -144,7 +136,6 @@ impl Args {
         Args {
             token: matches.get_one::<String>("token").unwrap().clone(),
             ip,
-            quiet: matches.get_flag("quiet"),
             dry_run: matches.get_flag("dry_run"),
             subcmd_args,
         }
