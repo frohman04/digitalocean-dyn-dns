@@ -13,6 +13,7 @@ extern crate serde_json;
 extern crate tracing;
 extern crate tracing_subscriber;
 
+use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::net::IpAddr;
 
@@ -21,6 +22,7 @@ use tracing_subscriber::FmtSubscriber;
 
 use crate::cli::{Port, SubcmdArgs};
 use crate::digitalocean::dns::{DigitalOceanDnsClient, DomainRecord};
+use crate::digitalocean::droplet::{DigitalOceanDropletClient, Droplet};
 use crate::digitalocean::firewall::{DigitalOceanFirewallClient, Firewall};
 
 mod cli;
@@ -55,8 +57,10 @@ fn main() {
         SubcmdArgs::Firewall(fw_args) => {
             run_firewall(
                 client.firewall,
+                client.droplet,
                 fw_args.name,
                 fw_args.port,
+                fw_args.droplets,
                 args.ip,
                 args.dry_run,
             )
@@ -118,31 +122,52 @@ fn run_dns(
 }
 
 fn run_firewall(
-    client: Box<dyn DigitalOceanFirewallClient>,
+    fw_client: Box<dyn DigitalOceanFirewallClient>,
+    droplet_client: Box<dyn DigitalOceanDropletClient>,
     name: String,
     port: Port,
+    droplet_names: Vec<String>,
     _ip: IpAddr,
     _dry_run: bool,
 ) -> Result<Firewall, Error> {
-    match client.get_firewall(name)? {
+    match fw_client.get_firewall(name)? {
         Some(firewall) => {
-            println!("{:?}", firewall);
+            println!("firewall: {:?}", firewall);
+
             match port {
                 Port::Inbound(inbound_port) => println!(
-                    "{:?}",
+                    "inbound port: {:?}",
                     match firewall.inbound_rules {
                         Some(ref rules) => rules.iter().find(|x| x.ports == inbound_port),
                         None => panic!("No inbound_rules available"),
                     }
                 ),
                 Port::Outbound(outbound_port) => println!(
-                    "{:?}",
+                    "outbound port: {:?}",
                     match firewall.outbound_rules {
                         Some(ref rules) => rules.iter().find(|x| x.ports == outbound_port),
                         None => panic!("No outbound_rules available"),
                     }
                 ),
             };
+
+            println!("allowed droplets (name): {:?}", droplet_names);
+            if !droplet_names.is_empty() {
+                let droplets_by_name = droplet_client
+                    .get_droplets()?
+                    .into_iter()
+                    .map(|d| (d.name.clone(), d))
+                    .collect::<HashMap<String, Droplet>>();
+                let droplet_ids = droplet_names
+                    .into_iter()
+                    .map(|name| match droplets_by_name.get(&name) {
+                        Some(droplet) => droplet.id,
+                        None => panic!("Unable to find droplet with name {}", name),
+                    })
+                    .collect::<Vec<u32>>();
+                println!("allowed droplets (id): {:?}", droplet_ids);
+            }
+
             Ok(firewall)
         }
         None => Err(Error::FirewallNotFound()),

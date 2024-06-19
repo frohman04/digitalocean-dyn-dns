@@ -31,6 +31,7 @@ pub struct DnsArgs {
 pub struct FirewallArgs {
     pub name: String,
     pub port: Port,
+    pub droplets: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -137,6 +138,14 @@ impl Args {
                         clap::ArgGroup::new("direction")
                             .args(["inbound", "outbound"])
                             .required(true),
+                    )
+                    .arg(
+                        clap::Arg::new("droplets")
+                            .long("droplets")
+                            .num_args(1)
+                            .help(
+                                "List of droplet names to allow with the rule, separated by commas",
+                            ),
                     ),
             )
             .subcommand_required(true)
@@ -175,6 +184,11 @@ impl Args {
             }
             Some(("firewall", sub_match)) => {
                 let port = sub_match.get_one::<String>("PORT").unwrap().clone();
+                let droplets = sub_match
+                    .get_one::<String>("droplets")
+                    .map_or(Vec::new(), |raw| {
+                        raw.split(',').map(|x| x.to_string()).collect()
+                    });
                 SubcmdArgs::Firewall(FirewallArgs {
                     name: sub_match.get_one::<String>("NAME").unwrap().clone(),
                     port: match sub_match.get_one::<Id>("direction").unwrap().as_str() {
@@ -182,6 +196,7 @@ impl Args {
                         "outbound" => Port::Outbound(port),
                         _ => panic!("No direction specified for port"),
                     },
+                    droplets,
                 })
             }
             // these situations should be impossible, but Rust can't tell since the subcommand
