@@ -60,6 +60,7 @@ fn main() {
                 client.droplet,
                 fw_args.name,
                 fw_args.port,
+                fw_args.addresses,
                 fw_args.droplets,
                 args.ip,
                 args.dry_run,
@@ -121,11 +122,13 @@ fn run_dns(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_firewall(
     fw_client: Box<dyn DigitalOceanFirewallClient>,
     droplet_client: Box<dyn DigitalOceanDropletClient>,
     name: String,
     port: Port,
+    addresses: Vec<String>,
     droplet_names: Vec<String>,
     _ip: IpAddr,
     _dry_run: bool,
@@ -150,6 +153,8 @@ fn run_firewall(
                     }
                 ),
             };
+
+            println!("allowed addresses: {:?}", addresses);
 
             println!("allowed droplets (name): {:?}", droplet_names);
             if !droplet_names.is_empty() {

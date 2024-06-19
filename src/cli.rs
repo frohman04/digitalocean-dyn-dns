@@ -31,6 +31,7 @@ pub struct DnsArgs {
 pub struct FirewallArgs {
     pub name: String,
     pub port: Port,
+    pub addresses: Vec<String>,
     pub droplets: Vec<String>,
 }
 
@@ -140,6 +141,15 @@ impl Args {
                             .required(true),
                     )
                     .arg(
+                        clap::Arg::new("addresses")
+                            .long("addresses")
+                            .num_args(1)
+                            .help(
+                                "List of IPv4 addresses, IPv6 addresses, IPv4 CIDRs, and/or \
+                                IPv6 CIDRs to allow with the rule, separated by commas",
+                            ),
+                    )
+                    .arg(
                         clap::Arg::new("droplets")
                             .long("droplets")
                             .num_args(1)
@@ -184,6 +194,11 @@ impl Args {
             }
             Some(("firewall", sub_match)) => {
                 let port = sub_match.get_one::<String>("PORT").unwrap().clone();
+                let addresses = sub_match
+                    .get_one::<String>("addresses")
+                    .map_or(Vec::new(), |raw| {
+                        raw.split(',').map(|x| x.to_string()).collect()
+                    });
                 let droplets = sub_match
                     .get_one::<String>("droplets")
                     .map_or(Vec::new(), |raw| {
@@ -196,6 +211,7 @@ impl Args {
                         "outbound" => Port::Outbound(port),
                         _ => panic!("No direction specified for port"),
                     },
+                    addresses,
                     droplets,
                 })
             }
