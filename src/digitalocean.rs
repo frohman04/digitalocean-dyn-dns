@@ -1,6 +1,7 @@
 use reqwest::blocking::ClientBuilder;
 use serde::{Deserialize, Serialize};
 
+use reqwest::Method;
 use std::net::IpAddr;
 use tracing::info;
 
@@ -49,6 +50,18 @@ impl DigitalOceanClientImpl {
         }
     }
 
+    fn get_request_builder(
+        &self,
+        method: Method,
+        url: String,
+    ) -> reqwest::blocking::RequestBuilder {
+        ClientBuilder::new()
+            .build()
+            .unwrap()
+            .request(method, url)
+            .header("Authorization", format!("Bearer {}", self.token))
+    }
+
     #[cfg(test)]
     pub fn new_for_test(token: String, base_url: String) -> DigitalOceanClientImpl {
         DigitalOceanClientImpl {
@@ -67,11 +80,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
         let mut obj: Option<Domain> = None;
 
         while !exit {
-            let resp = ClientBuilder::new()
-                .build()
-                .unwrap()
-                .get(url.clone())
-                .header("Authorization", format!("Bearer {}", self.token))
+            let resp = DigitalOceanClientImpl::get_request_builder(self, Method::GET, url.clone())
                 .send()?
                 .json::<DomainsResp>()?;
 
@@ -107,11 +116,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
         let mut obj: Option<DomainRecord> = None;
 
         while !exit {
-            let resp = ClientBuilder::new()
-                .build()
-                .unwrap()
-                .get(url.clone())
-                .header("Authorization", format!("Bearer {}", self.token))
+            let resp = DigitalOceanClientImpl::get_request_builder(self, Method::GET, url.clone())
                 .send()?
                 .json::<DomainRecordsResp>()?;
 
@@ -163,11 +168,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
                 "{}/v2/domains/{}/records/{}",
                 self.base_url, domain, record.id
             );
-            let resp = ClientBuilder::new()
-                .build()
-                .unwrap()
-                .put(url)
-                .header("Authorization", format!("Bearer {}", self.token))
+            let resp = DigitalOceanClientImpl::get_request_builder(self, Method::PUT, url)
                 .json(&DomainRecordPutBody {
                     data: value.to_string(),
                 })
@@ -212,11 +213,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
             })
         } else {
             let url = format!("{}/v2/domains/{}/records", self.base_url, domain);
-            let resp = ClientBuilder::new()
-                .build()
-                .unwrap()
-                .post(url)
-                .header("Authorization", format!("Bearer {}", self.token))
+            let resp = DigitalOceanClientImpl::get_request_builder(self, Method::POST, url)
                 .json(&DomainRecordPostBody {
                     typ: rtype.to_string(),
                     name: record.to_string(),
