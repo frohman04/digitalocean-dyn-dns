@@ -1,14 +1,17 @@
 use crate::digitalocean::api::DigitalOceanApiClient;
 use crate::digitalocean::dns::{DigitalOceanDnsClient, DigitalOceanDnsClientImpl};
+use crate::digitalocean::firewall::{DigitalOceanFirewallClient, DigitalOceanFirewallClientImpl};
 
 pub mod api;
 pub mod dns;
 pub mod error;
+pub mod firewall;
 
 #[allow(dead_code)]
 pub struct DigitalOceanClient {
     api: DigitalOceanApiClient,
     pub dns: Box<dyn DigitalOceanDnsClient>,
+    pub firewall: Box<dyn DigitalOceanFirewallClient>,
 }
 
 impl DigitalOceanClient {
@@ -16,7 +19,8 @@ impl DigitalOceanClient {
         let api = DigitalOceanApiClient::new(token);
         DigitalOceanClient {
             api: api.clone(),
-            dns: Box::new(DigitalOceanDnsClientImpl::new(api)),
+            dns: Box::new(DigitalOceanDnsClientImpl::new(api.clone())),
+            firewall: Box::new(DigitalOceanFirewallClientImpl::new(api)),
         }
     }
 
@@ -25,7 +29,8 @@ impl DigitalOceanClient {
         let api = DigitalOceanApiClient::new_for_test(token, base_url);
         DigitalOceanClient {
             api: api.clone(),
-            dns: Box::new(DigitalOceanDnsClientImpl::new(api)),
+            dns: Box::new(DigitalOceanDnsClientImpl::new(api.clone())),
+            firewall: Box::new(DigitalOceanFirewallClientImpl::new(api)),
         }
     }
 }

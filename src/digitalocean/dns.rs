@@ -214,6 +214,7 @@ impl DigitalOceanDnsClient for DigitalOceanDnsClientImpl {
         }
     }
 }
+
 // /v2/domains
 
 #[derive(Deserialize, Debug)]

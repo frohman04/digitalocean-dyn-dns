@@ -16,6 +16,7 @@ pub struct Args {
 #[derive(Debug)]
 pub enum SubcmdArgs {
     Dns(DnsArgs),
+    Firewall(FirewallArgs),
 }
 
 #[derive(Debug)]
@@ -24,6 +25,11 @@ pub struct DnsArgs {
     pub domain: String,
     pub rtype: String,
     pub ttl: u16,
+}
+
+#[derive(Debug)]
+pub struct FirewallArgs {
+    pub name: String,
 }
 
 impl Args {
@@ -94,6 +100,14 @@ impl Args {
                             .help("The TTL for the new DNS record"),
                     ),
             )
+            .subcommand(
+                clap::Command::new("firewall").arg(
+                    clap::Arg::new("NAME")
+                        .required(true)
+                        .num_args(1)
+                        .help("The name of the firewall to update"),
+                ),
+            )
             .subcommand_required(true)
             .get_matches();
 
@@ -128,6 +142,9 @@ impl Args {
                         .expect("Must provide integer for ttl"),
                 })
             }
+            Some(("firewall", sub_match)) => SubcmdArgs::Firewall(FirewallArgs {
+                name: sub_match.get_one::<String>("NAME").unwrap().clone(),
+            }),
             // these situations should be impossible, but Rust can't tell since the subcommand
             // matches are stringly-typed and it can't tell that we require a subcommand
             Some((cmd, _)) => panic!("Unknown subcommand detected: {}", cmd),

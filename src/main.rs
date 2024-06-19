@@ -21,6 +21,7 @@ use tracing_subscriber::FmtSubscriber;
 
 use crate::cli::SubcmdArgs;
 use crate::digitalocean::dns::{DigitalOceanDnsClient, DomainRecord};
+use crate::digitalocean::firewall::{DigitalOceanFirewallClient, Firewall};
 
 mod cli;
 mod digitalocean;
@@ -39,16 +40,22 @@ fn main() {
     let client = digitalocean::DigitalOceanClient::new(args.token);
 
     match args.subcmd_args {
-        SubcmdArgs::Dns(dns_args) => run_dns(
-            client.dns,
-            dns_args.domain,
-            dns_args.record,
-            dns_args.rtype,
-            args.ip,
-            dns_args.ttl,
-            args.dry_run,
-        )
-        .expect("Encountered error while updating DNS record"),
+        SubcmdArgs::Dns(dns_args) => {
+            run_dns(
+                client.dns,
+                dns_args.domain,
+                dns_args.record,
+                dns_args.rtype,
+                args.ip,
+                dns_args.ttl,
+                args.dry_run,
+            )
+            .expect("Encountered error while updating DNS record");
+        }
+        SubcmdArgs::Firewall(fw_args) => {
+            run_firewall(client.firewall, fw_args.name, args.ip, args.dry_run)
+                .expect("Enountered error while updating firewall");
+        }
     };
 }
 
@@ -104,12 +111,28 @@ fn run_dns(
     }
 }
 
+fn run_firewall(
+    client: Box<dyn DigitalOceanFirewallClient>,
+    name: String,
+    _ip: IpAddr,
+    _dry_run: bool,
+) -> Result<Firewall, Error> {
+    match client.get_firewall(name)? {
+        Some(firewall) => {
+            println!("{:?}", firewall);
+            Ok(firewall)
+        }
+        None => Err(Error::FirewallNotFound()),
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug)]
 enum Error {
     Client(digitalocean::error::Error),
     AddrParseErr(std::net::AddrParseError),
     DomainNotFound(),
+    FirewallNotFound(),
 }
 
 impl From<digitalocean::error::Error> for Error {
