@@ -1,10 +1,13 @@
-use reqwest::blocking::ClientBuilder;
-use serde::{Deserialize, Serialize};
-
 use std::net::IpAddr;
+
+use reqwest::Method;
+use serde::{Deserialize, Serialize};
 use tracing::info;
 
-pub trait DigitalOceanClient {
+use crate::digitalocean::api::{DigitalOceanApiClient, Links, Meta};
+use crate::digitalocean::error::Error;
+
+pub trait DigitalOceanDnsClient {
     fn get_domain(&self, domain: &str) -> Result<Option<Domain>, Error>;
 
     fn get_record(
@@ -34,44 +37,27 @@ pub trait DigitalOceanClient {
     ) -> Result<DomainRecord, Error>;
 }
 
-pub struct DigitalOceanClientImpl {
-    base_url: String,
-    force_https: bool,
-    token: String,
+pub struct DigitalOceanDnsClientImpl {
+    api: DigitalOceanApiClient,
 }
 
-impl DigitalOceanClientImpl {
-    pub fn new(token: String) -> DigitalOceanClientImpl {
-        DigitalOceanClientImpl {
-            base_url: "https://api.digitalocean.com".to_string(),
-            force_https: true,
-            token,
-        }
-    }
-
-    #[cfg(test)]
-    pub fn new_for_test(token: String, base_url: String) -> DigitalOceanClientImpl {
-        DigitalOceanClientImpl {
-            base_url,
-            force_https: false,
-            token,
-        }
+impl DigitalOceanDnsClientImpl {
+    pub fn new(api: DigitalOceanApiClient) -> DigitalOceanDnsClientImpl {
+        DigitalOceanDnsClientImpl { api }
     }
 }
 
-impl DigitalOceanClient for DigitalOceanClientImpl {
+impl DigitalOceanDnsClient for DigitalOceanDnsClientImpl {
     /// Check to see if a domain is controlled by this DigitalOcean account
     fn get_domain(&self, domain: &str) -> Result<Option<Domain>, Error> {
-        let mut url = format!("{}/v2/domains", self.base_url);
+        let mut url = self.api.get_url("/v2/domains");
         let mut exit = false;
         let mut obj: Option<Domain> = None;
 
         while !exit {
-            let resp = ClientBuilder::new()
-                .build()
-                .unwrap()
-                .get(url.clone())
-                .header("Authorization", format!("Bearer {}", self.token))
+            let resp = self
+                .api
+                .get_request_builder(Method::GET, url.clone())
                 .send()?
                 .json::<DomainsResp>()?;
 
@@ -81,9 +67,6 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
             } else if resp.links.pages.is_some() && resp.links.pages.clone().unwrap().next.is_some()
             {
                 url = resp.links.pages.unwrap().next.unwrap();
-                if self.force_https {
-                    url = url.replace("http://", "https://");
-                }
             } else {
                 exit = true;
             }
@@ -99,19 +82,16 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
         record: &str,
         rtype: &str,
     ) -> Result<Option<DomainRecord>, Error> {
-        let mut url = format!(
-            "{}/v2/domains/{}/records?type={}",
-            self.base_url, domain, rtype
-        );
+        let mut url = self
+            .api
+            .get_url(format!("/v2/domains/{}/records?type={}", domain, rtype).as_str());
         let mut exit = false;
         let mut obj: Option<DomainRecord> = None;
 
         while !exit {
-            let resp = ClientBuilder::new()
-                .build()
-                .unwrap()
-                .get(url.clone())
-                .header("Authorization", format!("Bearer {}", self.token))
+            let resp = self
+                .api
+                .get_request_builder(Method::GET, url.clone())
                 .send()?
                 .json::<DomainRecordsResp>()?;
 
@@ -121,9 +101,6 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
             } else if resp.links.pages.is_some() && resp.links.pages.clone().unwrap().next.is_some()
             {
                 url = resp.links.pages.unwrap().next.unwrap();
-                if self.force_https {
-                    url = url.replace("http://", "https://");
-                }
             } else {
                 exit = true;
             }
@@ -159,15 +136,12 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
                 tag: None,
             })
         } else {
-            let url = format!(
-                "{}/v2/domains/{}/records/{}",
-                self.base_url, domain, record.id
-            );
-            let resp = ClientBuilder::new()
-                .build()
-                .unwrap()
-                .put(url)
-                .header("Authorization", format!("Bearer {}", self.token))
+            let url = self
+                .api
+                .get_url(format!("/v2/domains/{}/records/{}", domain, record.id).as_str());
+            let resp = self
+                .api
+                .get_request_builder(Method::PUT, url)
                 .json(&DomainRecordPutBody {
                     data: value.to_string(),
                 })
@@ -211,12 +185,12 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
                 tag: None,
             })
         } else {
-            let url = format!("{}/v2/domains/{}/records", self.base_url, domain);
-            let resp = ClientBuilder::new()
-                .build()
-                .unwrap()
-                .post(url)
-                .header("Authorization", format!("Bearer {}", self.token))
+            let url = self
+                .api
+                .get_url(format!("/v2/domains/{}/records", domain).as_str());
+            let resp = self
+                .api
+                .get_request_builder(Method::POST, url)
                 .json(&DomainRecordPostBody {
                     typ: rtype.to_string(),
                     name: record.to_string(),
@@ -240,66 +214,6 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
         }
     }
 }
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub enum Error {
-    Request(reqwest::Error),
-    IpParse(std::net::AddrParseError),
-    Update(String),
-    Create(String),
-}
-
-impl From<reqwest::Error> for Error {
-    fn from(e: reqwest::Error) -> Self {
-        Error::Request(e)
-    }
-}
-
-impl From<std::net::AddrParseError> for Error {
-    fn from(e: std::net::AddrParseError) -> Self {
-        Error::IpParse(e)
-    }
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-impl PartialEq for Error {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Request(_), Self::Request(_)) => false,
-            (Self::IpParse(e1), Self::IpParse(e2)) => e1.to_string() == e2.to_string(),
-            (Self::Update(e1), Self::Update(e2)) => e1 == e2,
-            (Self::Create(e1), Self::Create(e2)) => e1 == e2,
-            _ => false,
-        }
-    }
-}
-
-// common parts of responses for collections
-
-#[derive(Deserialize, Debug, Eq, PartialEq)]
-struct Meta {
-    total: u32,
-}
-
-#[derive(Deserialize, Debug, Eq, PartialEq)]
-struct Links {
-    pages: Option<Pages>,
-}
-
-#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
-struct Pages {
-    first: Option<String>,
-    prev: Option<String>,
-    next: Option<String>,
-    last: Option<String>,
-}
-
 // /v2/domains
 
 #[derive(Deserialize, Debug)]
@@ -401,9 +315,12 @@ struct DomainRecordPutBody {
 
 #[cfg(test)]
 mod test {
-    use crate::digitalocean::{DigitalOceanClient, DigitalOceanClientImpl, Domain, DomainRecord};
-    use mockito;
     use std::net::Ipv4Addr;
+
+    use mockito;
+
+    use crate::digitalocean::dns::{Domain, DomainRecord};
+    use crate::digitalocean::DigitalOceanClient;
 
     #[test]
     fn test_get_domain_simple_found() {
@@ -436,7 +353,8 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .dns
             .get_domain(&"yahoo.com".to_string());
         assert_eq!(
             Ok(Some(Domain {
@@ -501,7 +419,8 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .dns
             .get_domain(&"yahoo.com".to_string());
         assert_eq!(
             Ok(Some(Domain {
@@ -535,7 +454,8 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .dns
             .get_domain(&"yahoo.com".to_string());
         assert_eq!(Ok(None), resp);
         _m.assert();
@@ -586,7 +506,8 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .dns
             .get_record(
                 &"google.com".to_string(),
                 &"foo".to_string(),
@@ -676,7 +597,8 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .dns
             .get_record(
                 &"google.com".to_string(),
                 &"foo".to_string(),
@@ -721,7 +643,8 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .dns
             .get_record(
                 &"google.com".to_string(),
                 &"foo".to_string(),
@@ -774,7 +697,8 @@ mod test {
             flags: None,
             tag: None,
         };
-        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .dns
             .update_record(
                 &"google.com".to_string(),
                 &orig_record,
@@ -839,7 +763,8 @@ mod test {
             )
             .create();
 
-        let resp = DigitalOceanClientImpl::new_for_test("foo".to_string(), server.url())
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .dns
             .create_record(
                 &"google.com".to_string(),
                 &"foo".to_string(),

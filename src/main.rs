@@ -1,30 +1,30 @@
 #![forbid(unsafe_code)]
 
 extern crate clap;
+#[cfg(test)]
+extern crate mockito;
 extern crate reqwest;
 extern crate serde;
 #[cfg(not(test))]
 extern crate serde_json;
-extern crate tracing;
-extern crate tracing_subscriber;
-
-#[cfg(test)]
-extern crate mockito;
 #[cfg(test)]
 #[macro_use]
 extern crate serde_json;
+extern crate tracing;
+extern crate tracing_subscriber;
+
+use std::fmt::Formatter;
+use std::net::IpAddr;
+
+use tracing::{info, Level};
+use tracing_subscriber::FmtSubscriber;
+
+use crate::cli::SubcmdArgs;
+use crate::digitalocean::dns::{DigitalOceanDnsClient, DomainRecord};
 
 mod cli;
 mod digitalocean;
 mod ip_retriever;
-
-use crate::cli::SubcmdArgs;
-use std::fmt::Formatter;
-use std::net::IpAddr;
-use tracing::{info, Level};
-use tracing_subscriber::FmtSubscriber;
-
-use crate::digitalocean::{DigitalOceanClient, DomainRecord};
 
 fn main() {
     let ansi_enabled = fix_ansi_term();
@@ -36,11 +36,11 @@ fn main() {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let args = cli::Args::parse_args();
-    let client = digitalocean::DigitalOceanClientImpl::new(args.token);
+    let client = digitalocean::DigitalOceanClient::new(args.token);
 
     match args.subcmd_args {
         SubcmdArgs::Dns(dns_args) => run_dns(
-            Box::new(client),
+            client.dns,
             dns_args.domain,
             dns_args.record,
             dns_args.rtype,
@@ -63,7 +63,7 @@ fn fix_ansi_term() -> bool {
 }
 
 fn run_dns(
-    client: Box<dyn DigitalOceanClient>,
+    client: Box<dyn DigitalOceanDnsClient>,
     domain: String,
     record_name: String,
     rtype: String,
@@ -107,13 +107,13 @@ fn run_dns(
 #[allow(dead_code)]
 #[derive(Debug)]
 enum Error {
-    Client(digitalocean::Error),
+    Client(digitalocean::error::Error),
     AddrParseErr(std::net::AddrParseError),
     DomainNotFound(),
 }
 
-impl From<digitalocean::Error> for Error {
-    fn from(e: digitalocean::Error) -> Self {
+impl From<digitalocean::error::Error> for Error {
+    fn from(e: digitalocean::error::Error) -> Self {
         Error::Client(e)
     }
 }
@@ -132,9 +132,11 @@ impl std::fmt::Display for Error {
 
 #[cfg(test)]
 mod test {
-    use crate::digitalocean::{DigitalOceanClient, Domain, DomainRecord, Error};
-    use crate::run_dns;
     use std::net::{IpAddr, Ipv4Addr};
+
+    use crate::digitalocean::dns::{DigitalOceanDnsClient, Domain, DomainRecord};
+    use crate::digitalocean::error::Error;
+    use crate::run_dns;
 
     #[test]
     fn test_create_record() {
@@ -299,7 +301,7 @@ mod test {
         create_record_is_ok: bool,
     }
 
-    impl DigitalOceanClient for TestClientImpl {
+    impl DigitalOceanDnsClient for TestClientImpl {
         fn get_domain(&self, _: &str) -> Result<Option<Domain>, Error> {
             if self.get_domain_is_ok {
                 if self.get_domain_is_some {
