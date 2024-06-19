@@ -1,78 +1,11 @@
-use reqwest::blocking::{ClientBuilder, RequestBuilder};
-use serde::{Deserialize, Serialize};
+use std::net::IpAddr;
 
 use reqwest::Method;
-use std::net::IpAddr;
+use serde::{Deserialize, Serialize};
 use tracing::info;
-use url::Url;
 
-#[allow(dead_code)]
-pub struct DigitalOceanClient {
-    api: DigitalOceanApiClient,
-    pub dns: Box<dyn DigitalOceanDnsClient>,
-}
-
-impl DigitalOceanClient {
-    pub fn new(token: String) -> DigitalOceanClient {
-        let api = DigitalOceanApiClient::new(token);
-        DigitalOceanClient {
-            api: api.clone(),
-            dns: Box::new(DigitalOceanDnsClientImpl::new(api)),
-        }
-    }
-
-    #[cfg(test)]
-    pub fn new_for_test(token: String, base_url: String) -> DigitalOceanClient {
-        let api = DigitalOceanApiClient::new_for_test(token, base_url);
-        DigitalOceanClient {
-            api: api.clone(),
-            dns: Box::new(DigitalOceanDnsClientImpl::new(api)),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct DigitalOceanApiClient {
-    base_url: Url,
-    force_https: bool,
-    token: String,
-}
-
-impl DigitalOceanApiClient {
-    pub fn new(token: String) -> DigitalOceanApiClient {
-        DigitalOceanApiClient {
-            base_url: Url::parse("https://api.digitalocean.com").unwrap(),
-            force_https: true,
-            token,
-        }
-    }
-
-    pub fn get_url(&self, endpoint: &str) -> String {
-        self.base_url.join(endpoint).unwrap().to_string()
-    }
-
-    pub fn get_request_builder(&self, method: Method, url: String) -> RequestBuilder {
-        let mut real_url = url;
-        if self.force_https {
-            real_url = real_url.replace("http://", "https://");
-        }
-
-        ClientBuilder::new()
-            .build()
-            .unwrap()
-            .request(method, real_url)
-            .header("Authorization", format!("Bearer {}", self.token))
-    }
-
-    #[cfg(test)]
-    pub fn new_for_test(token: String, base_url: String) -> DigitalOceanApiClient {
-        DigitalOceanApiClient {
-            base_url: Url::parse(base_url.as_str()).unwrap(),
-            force_https: false,
-            token,
-        }
-    }
-}
+use crate::digitalocean::api::{DigitalOceanApiClient, Links, Meta};
+use crate::digitalocean::error::Error;
 
 pub trait DigitalOceanDnsClient {
     fn get_domain(&self, domain: &str) -> Result<Option<Domain>, Error>;
@@ -281,66 +214,6 @@ impl DigitalOceanDnsClient for DigitalOceanDnsClientImpl {
         }
     }
 }
-
-#[derive(Debug)]
-#[allow(dead_code)]
-pub enum Error {
-    Request(reqwest::Error),
-    IpParse(std::net::AddrParseError),
-    Update(String),
-    Create(String),
-}
-
-impl From<reqwest::Error> for Error {
-    fn from(e: reqwest::Error) -> Self {
-        Error::Request(e)
-    }
-}
-
-impl From<std::net::AddrParseError> for Error {
-    fn from(e: std::net::AddrParseError) -> Self {
-        Error::IpParse(e)
-    }
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-impl PartialEq for Error {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Request(_), Self::Request(_)) => false,
-            (Self::IpParse(e1), Self::IpParse(e2)) => e1.to_string() == e2.to_string(),
-            (Self::Update(e1), Self::Update(e2)) => e1 == e2,
-            (Self::Create(e1), Self::Create(e2)) => e1 == e2,
-            _ => false,
-        }
-    }
-}
-
-// common parts of responses for collections
-
-#[derive(Deserialize, Debug, Eq, PartialEq)]
-struct Meta {
-    total: u32,
-}
-
-#[derive(Deserialize, Debug, Eq, PartialEq)]
-struct Links {
-    pages: Option<Pages>,
-}
-
-#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
-struct Pages {
-    first: Option<String>,
-    prev: Option<String>,
-    next: Option<String>,
-    last: Option<String>,
-}
-
 // /v2/domains
 
 #[derive(Deserialize, Debug)]
@@ -442,9 +315,12 @@ struct DomainRecordPutBody {
 
 #[cfg(test)]
 mod test {
-    use crate::digitalocean::{DigitalOceanClient, Domain, DomainRecord};
-    use mockito;
     use std::net::Ipv4Addr;
+
+    use mockito;
+
+    use crate::digitalocean::dns::{Domain, DomainRecord};
+    use crate::digitalocean::DigitalOceanClient;
 
     #[test]
     fn test_get_domain_simple_found() {

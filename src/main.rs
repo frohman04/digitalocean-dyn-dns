@@ -1,30 +1,30 @@
 #![forbid(unsafe_code)]
 
 extern crate clap;
+#[cfg(test)]
+extern crate mockito;
 extern crate reqwest;
 extern crate serde;
 #[cfg(not(test))]
 extern crate serde_json;
-extern crate tracing;
-extern crate tracing_subscriber;
-
-#[cfg(test)]
-extern crate mockito;
 #[cfg(test)]
 #[macro_use]
 extern crate serde_json;
+extern crate tracing;
+extern crate tracing_subscriber;
+
+use std::fmt::Formatter;
+use std::net::IpAddr;
+
+use tracing::{info, Level};
+use tracing_subscriber::FmtSubscriber;
+
+use crate::cli::SubcmdArgs;
+use crate::digitalocean::dns::{DigitalOceanDnsClient, DomainRecord};
 
 mod cli;
 mod digitalocean;
 mod ip_retriever;
-
-use crate::cli::SubcmdArgs;
-use std::fmt::Formatter;
-use std::net::IpAddr;
-use tracing::{info, Level};
-use tracing_subscriber::FmtSubscriber;
-
-use crate::digitalocean::{DigitalOceanDnsClient, DomainRecord};
 
 fn main() {
     let ansi_enabled = fix_ansi_term();
@@ -107,13 +107,13 @@ fn run_dns(
 #[allow(dead_code)]
 #[derive(Debug)]
 enum Error {
-    Client(digitalocean::Error),
+    Client(digitalocean::error::Error),
     AddrParseErr(std::net::AddrParseError),
     DomainNotFound(),
 }
 
-impl From<digitalocean::Error> for Error {
-    fn from(e: digitalocean::Error) -> Self {
+impl From<digitalocean::error::Error> for Error {
+    fn from(e: digitalocean::error::Error) -> Self {
         Error::Client(e)
     }
 }
@@ -132,9 +132,11 @@ impl std::fmt::Display for Error {
 
 #[cfg(test)]
 mod test {
-    use crate::digitalocean::{DigitalOceanDnsClient, Domain, DomainRecord, Error};
-    use crate::run_dns;
     use std::net::{IpAddr, Ipv4Addr};
+
+    use crate::digitalocean::dns::{DigitalOceanDnsClient, Domain, DomainRecord};
+    use crate::digitalocean::error::Error;
+    use crate::run_dns;
 
     #[test]
     fn test_create_record() {
