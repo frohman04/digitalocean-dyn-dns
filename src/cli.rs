@@ -33,6 +33,7 @@ impl Args {
             .author("Chris Lieb")
             .arg(
                 clap::Arg::new("token")
+                    .required(true)
                     .short('t')
                     .long("token")
                     .num_args(1)
