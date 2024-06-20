@@ -22,7 +22,7 @@ impl DigitalOceanLoadbalancerClient for DigitalOceanLoadbalancerClientImpl {
     fn get_load_balancers(&self) -> Result<Vec<Loadbalancer>, Error> {
         let mut url = self.api.get_url("/v2/load_balancers");
         let mut exit = false;
-        let mut droplets: Vec<Loadbalancer> = Vec::new();
+        let mut load_balancers: Vec<Loadbalancer> = Vec::new();
 
         while !exit {
             let resp = self
@@ -31,7 +31,7 @@ impl DigitalOceanLoadbalancerClient for DigitalOceanLoadbalancerClientImpl {
                 .send()?
                 .json::<LoadbalancersResp>()?;
 
-            droplets.extend(resp.load_balancers.into_iter());
+            load_balancers.extend(resp.load_balancers.into_iter());
             if resp.links.pages.is_some() && resp.links.pages.clone().unwrap().next.is_some() {
                 url = resp.links.pages.unwrap().next.unwrap();
             } else {
@@ -39,7 +39,7 @@ impl DigitalOceanLoadbalancerClient for DigitalOceanLoadbalancerClientImpl {
             }
         }
 
-        Ok(droplets)
+        Ok(load_balancers)
     }
 }
 

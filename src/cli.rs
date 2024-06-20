@@ -35,6 +35,7 @@ pub struct FirewallArgs {
     pub protocol: String,
     pub addresses: Vec<String>,
     pub droplets: Vec<String>,
+    pub kubernetes_clusters: Vec<String>,
     pub load_balancers: Vec<String>,
 }
 
@@ -168,6 +169,12 @@ impl Args {
                             ),
                     )
                     .arg(
+                        clap::Arg::new("kubernetes-clusters")
+                            .long("kubernetes-clusters")
+                            .num_args(1)
+                            .help("List of Kubernetes cluster names to allow with the rule, separated by commas")
+                    )
+                    .arg(
                         clap::Arg::new("load-balancers")
                             .long("load-balancers")
                             .num_args(1)
@@ -219,6 +226,7 @@ impl Args {
                 protocol: sub_match.get_one::<String>("PROTOCOL").unwrap().clone(),
                 addresses: parse_csv(sub_match, "addresses"),
                 droplets: parse_csv(sub_match, "droplets"),
+                kubernetes_clusters: parse_csv(sub_match, "kubernetes-clusters"),
                 load_balancers: parse_csv(sub_match, "load-balancers"),
             }),
             // these situations should be impossible, but Rust can't tell since the subcommand

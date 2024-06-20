@@ -25,6 +25,7 @@ use crate::cli::{Direction, SubcmdArgs};
 use crate::digitalocean::dns::{DigitalOceanDnsClient, DomainRecord};
 use crate::digitalocean::droplet::DigitalOceanDropletClient;
 use crate::digitalocean::firewall::{DigitalOceanFirewallClient, Firewall};
+use crate::digitalocean::kubernetes::DigitalOceanKubernetesClient;
 use crate::digitalocean::loadbalancer::DigitalOceanLoadbalancerClient;
 
 mod cli;
@@ -60,6 +61,7 @@ fn main() {
             run_firewall(
                 client.firewall,
                 client.droplet,
+                client.kubernetes,
                 client.load_balancer,
                 fw_args.name,
                 fw_args.direction,
@@ -67,6 +69,7 @@ fn main() {
                 fw_args.protocol,
                 fw_args.addresses,
                 fw_args.droplets,
+                fw_args.kubernetes_clusters,
                 fw_args.load_balancers,
                 args.ip,
                 args.dry_run,
@@ -132,6 +135,7 @@ fn run_dns(
 fn run_firewall(
     fw_client: Box<dyn DigitalOceanFirewallClient>,
     droplet_client: Box<dyn DigitalOceanDropletClient>,
+    kubernetes_client: Box<dyn DigitalOceanKubernetesClient>,
     load_balancer_client: Box<dyn DigitalOceanLoadbalancerClient>,
     name: String,
     direction: Direction,
@@ -139,6 +143,7 @@ fn run_firewall(
     protocol: String,
     addresses: Vec<String>,
     droplet_names: Vec<String>,
+    kubernetes_cluster_names: Vec<String>,
     load_balancer_names: Vec<String>,
     ip: IpAddr,
     _dry_run: bool,
@@ -190,6 +195,23 @@ fn run_firewall(
                     |d| d.id.clone(),
                 );
                 println!("allowed load balancers (id): {:?}", load_balancer_ids);
+            }
+
+            println!(
+                "allowed kubernetes clusters (name): {:?}",
+                kubernetes_cluster_names
+            );
+            if !kubernetes_cluster_names.is_empty() {
+                let kubernetes_cluster_ids = names_to_ids(
+                    kubernetes_client.get_kubernetes_clusters()?,
+                    kubernetes_cluster_names,
+                    |d| d.name.clone(),
+                    |d| d.id.clone(),
+                );
+                println!(
+                    "allowed kubernetes clusters (id): {:?}",
+                    kubernetes_cluster_ids
+                );
             }
 
             Ok(firewall)
