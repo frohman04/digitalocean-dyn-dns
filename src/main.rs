@@ -14,7 +14,8 @@ extern crate tracing;
 extern crate tracing_subscriber;
 
 use std::collections::HashMap;
-use std::fmt::Formatter;
+use std::fmt::{Display, Formatter};
+use std::hash::Hash;
 use std::net::IpAddr;
 
 use tracing::{info, Level};
@@ -22,8 +23,9 @@ use tracing_subscriber::FmtSubscriber;
 
 use crate::cli::{Direction, SubcmdArgs};
 use crate::digitalocean::dns::{DigitalOceanDnsClient, DomainRecord};
-use crate::digitalocean::droplet::{DigitalOceanDropletClient, Droplet};
+use crate::digitalocean::droplet::DigitalOceanDropletClient;
 use crate::digitalocean::firewall::{DigitalOceanFirewallClient, Firewall};
+use crate::digitalocean::loadbalancer::DigitalOceanLoadbalancerClient;
 
 mod cli;
 mod digitalocean;
@@ -58,12 +60,14 @@ fn main() {
             run_firewall(
                 client.firewall,
                 client.droplet,
+                client.load_balancer,
                 fw_args.name,
                 fw_args.direction,
                 fw_args.port,
                 fw_args.protocol,
                 fw_args.addresses,
                 fw_args.droplets,
+                fw_args.load_balancers,
                 args.ip,
                 args.dry_run,
             )
@@ -128,12 +132,14 @@ fn run_dns(
 fn run_firewall(
     fw_client: Box<dyn DigitalOceanFirewallClient>,
     droplet_client: Box<dyn DigitalOceanDropletClient>,
+    load_balancer_client: Box<dyn DigitalOceanLoadbalancerClient>,
     name: String,
     direction: Direction,
     port: String,
     protocol: String,
     addresses: Vec<String>,
     droplet_names: Vec<String>,
+    load_balancer_names: Vec<String>,
     ip: IpAddr,
     _dry_run: bool,
 ) -> Result<Firewall, Error> {
@@ -166,25 +172,54 @@ fn run_firewall(
 
             println!("allowed droplets (name): {:?}", droplet_names);
             if !droplet_names.is_empty() {
-                let droplets_by_name = droplet_client
-                    .get_droplets()?
-                    .into_iter()
-                    .map(|d| (d.name.clone(), d))
-                    .collect::<HashMap<String, Droplet>>();
-                let droplet_ids = droplet_names
-                    .into_iter()
-                    .map(|name| match droplets_by_name.get(&name) {
-                        Some(droplet) => droplet.id,
-                        None => panic!("Unable to find droplet with name {}", name),
-                    })
-                    .collect::<Vec<u32>>();
+                let droplet_ids = names_to_ids(
+                    droplet_client.get_droplets()?,
+                    droplet_names,
+                    |d| d.name.clone(),
+                    |d| d.id,
+                );
                 println!("allowed droplets (id): {:?}", droplet_ids);
+            }
+
+            println!("allowed load balancers (name): {:?}", load_balancer_names);
+            if !load_balancer_names.is_empty() {
+                let load_balancer_ids = names_to_ids(
+                    load_balancer_client.get_load_balancers()?,
+                    load_balancer_names,
+                    |d| d.name.clone(),
+                    |d| d.id.clone(),
+                );
+                println!("allowed load balancers (id): {:?}", load_balancer_ids);
             }
 
             Ok(firewall)
         }
         None => Err(Error::FirewallNotFound()),
     }
+}
+
+fn names_to_ids<K, N, T, KF, NF>(
+    objects: Vec<T>,
+    names: Vec<N>,
+    extract_name: NF,
+    extract_key: KF,
+) -> Vec<K>
+where
+    N: Eq + Hash + Display,
+    KF: Fn(&T) -> K,
+    NF: Fn(&T) -> N,
+{
+    let by_name = objects
+        .into_iter()
+        .map(|d| (extract_name(&d), d))
+        .collect::<HashMap<N, T>>();
+    names
+        .into_iter()
+        .map(|name| match by_name.get(&name) {
+            Some(d) => extract_key(d),
+            None => panic!("Unable to find object with name {}", name),
+        })
+        .collect::<Vec<K>>()
 }
 
 #[allow(dead_code)]

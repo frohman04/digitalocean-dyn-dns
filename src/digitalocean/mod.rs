@@ -2,19 +2,24 @@ use crate::digitalocean::api::DigitalOceanApiClient;
 use crate::digitalocean::dns::{DigitalOceanDnsClient, DigitalOceanDnsClientImpl};
 use crate::digitalocean::droplet::{DigitalOceanDropletClient, DigitalOceanDropletClientImpl};
 use crate::digitalocean::firewall::{DigitalOceanFirewallClient, DigitalOceanFirewallClientImpl};
+use crate::digitalocean::loadbalancer::{
+    DigitalOceanLoadbalancerClient, DigitalOceanLoadbalancerClientImpl,
+};
 
 pub mod api;
 pub mod dns;
 pub mod droplet;
 pub mod error;
 pub mod firewall;
+pub mod loadbalancer;
 
 #[allow(dead_code)]
 pub struct DigitalOceanClient {
     api: DigitalOceanApiClient,
     pub dns: Box<dyn DigitalOceanDnsClient>,
-    pub firewall: Box<dyn DigitalOceanFirewallClient>,
     pub droplet: Box<dyn DigitalOceanDropletClient>,
+    pub firewall: Box<dyn DigitalOceanFirewallClient>,
+    pub load_balancer: Box<dyn DigitalOceanLoadbalancerClient>,
 }
 
 impl DigitalOceanClient {
@@ -26,8 +31,9 @@ impl DigitalOceanClient {
         DigitalOceanClient {
             api: api.clone(),
             dns: Box::new(DigitalOceanDnsClientImpl::new(api.clone())),
+            droplet: Box::new(DigitalOceanDropletClientImpl::new(api.clone())),
             firewall: Box::new(DigitalOceanFirewallClientImpl::new(api.clone())),
-            droplet: Box::new(DigitalOceanDropletClientImpl::new(api)),
+            load_balancer: Box::new(DigitalOceanLoadbalancerClientImpl::new(api)),
         }
     }
 

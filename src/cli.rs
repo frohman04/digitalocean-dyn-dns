@@ -1,6 +1,6 @@
 use std::net::IpAddr;
 
-use clap::{crate_name, crate_version, Id};
+use clap::{crate_name, crate_version, ArgMatches, Id};
 use tracing::info;
 
 use crate::ip_retriever;
@@ -35,6 +35,7 @@ pub struct FirewallArgs {
     pub protocol: String,
     pub addresses: Vec<String>,
     pub droplets: Vec<String>,
+    pub load_balancers: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -165,6 +166,12 @@ impl Args {
                             .help(
                                 "List of droplet names to allow with the rule, separated by commas",
                             ),
+                    )
+                    .arg(
+                        clap::Arg::new("load-balancers")
+                            .long("load-balancers")
+                            .num_args(1)
+                            .help("List of load balancer names to allow with the rule, separated by commas")
                     ),
             )
             .subcommand_required(true)
@@ -201,30 +208,19 @@ impl Args {
                         .expect("Must provide integer for ttl"),
                 })
             }
-            Some(("firewall", sub_match)) => {
-                let addresses = sub_match
-                    .get_one::<String>("addresses")
-                    .map_or(Vec::new(), |raw| {
-                        raw.split(',').map(|x| x.to_string()).collect()
-                    });
-                let droplets = sub_match
-                    .get_one::<String>("droplets")
-                    .map_or(Vec::new(), |raw| {
-                        raw.split(',').map(|x| x.to_string()).collect()
-                    });
-                SubcmdArgs::Firewall(FirewallArgs {
-                    name: sub_match.get_one::<String>("NAME").unwrap().clone(),
-                    direction: match sub_match.get_one::<Id>("direction").unwrap().as_str() {
-                        "inbound" => Direction::Inbound,
-                        "outbound" => Direction::Outbound,
-                        _ => panic!("No direction specified"),
-                    },
-                    port: sub_match.get_one::<String>("PORT").unwrap().clone(),
-                    protocol: sub_match.get_one::<String>("PROTOCOL").unwrap().clone(),
-                    addresses,
-                    droplets,
-                })
-            }
+            Some(("firewall", sub_match)) => SubcmdArgs::Firewall(FirewallArgs {
+                name: sub_match.get_one::<String>("NAME").unwrap().clone(),
+                direction: match sub_match.get_one::<Id>("direction").unwrap().as_str() {
+                    "inbound" => Direction::Inbound,
+                    "outbound" => Direction::Outbound,
+                    _ => panic!("No direction specified"),
+                },
+                port: sub_match.get_one::<String>("PORT").unwrap().clone(),
+                protocol: sub_match.get_one::<String>("PROTOCOL").unwrap().clone(),
+                addresses: parse_csv(sub_match, "addresses"),
+                droplets: parse_csv(sub_match, "droplets"),
+                load_balancers: parse_csv(sub_match, "load-balancers"),
+            }),
             // these situations should be impossible, but Rust can't tell since the subcommand
             // matches are stringly-typed and it can't tell that we require a subcommand
             Some((cmd, _)) => panic!("Unknown subcommand detected: {}", cmd),
@@ -238,4 +234,12 @@ impl Args {
             subcmd_args,
         }
     }
+}
+
+fn parse_csv(matches: &ArgMatches, arg_name: &str) -> Vec<String> {
+    matches
+        .get_one::<String>(arg_name)
+        .map_or(Vec::new(), |raw| {
+            raw.split(',').map(|x| x.to_string()).collect()
+        })
 }
