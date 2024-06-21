@@ -33,10 +33,10 @@ pub struct FirewallArgs {
     pub direction: Direction,
     pub port: String,
     pub protocol: String,
-    pub addresses: Vec<String>,
-    pub droplets: Vec<String>,
-    pub kubernetes_clusters: Vec<String>,
-    pub load_balancers: Vec<String>,
+    pub addresses: Option<Vec<String>>,
+    pub droplets: Option<Vec<String>>,
+    pub kubernetes_clusters: Option<Vec<String>>,
+    pub load_balancers: Option<Vec<String>>,
 }
 
 #[derive(Debug)]
@@ -244,10 +244,8 @@ impl Args {
     }
 }
 
-fn parse_csv(matches: &ArgMatches, arg_name: &str) -> Vec<String> {
+fn parse_csv(matches: &ArgMatches, arg_name: &str) -> Option<Vec<String>> {
     matches
         .get_one::<String>(arg_name)
-        .map_or(Vec::new(), |raw| {
-            raw.split(',').map(|x| x.to_string()).collect()
-        })
+        .map(|raw| raw.split(',').map(|x| x.to_string()).collect())
 }

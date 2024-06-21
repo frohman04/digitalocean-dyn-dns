@@ -24,7 +24,9 @@ use tracing_subscriber::FmtSubscriber;
 use crate::cli::{Direction, SubcmdArgs};
 use crate::digitalocean::dns::{DigitalOceanDnsClient, DomainRecord};
 use crate::digitalocean::droplet::DigitalOceanDropletClient;
-use crate::digitalocean::firewall::{DigitalOceanFirewallClient, Firewall};
+use crate::digitalocean::firewall::{
+    DigitalOceanFirewallClient, Firewall, FirewallInboundRule, FirewallOutboundRule,
+};
 use crate::digitalocean::kubernetes::DigitalOceanKubernetesClient;
 use crate::digitalocean::loadbalancer::DigitalOceanLoadbalancerClient;
 
@@ -74,7 +76,7 @@ fn main() {
                 args.ip,
                 args.dry_run,
             )
-            .expect("Enountered error while updating firewall");
+            .expect("Encountered error while updating firewall");
         }
     };
 }
@@ -141,107 +143,150 @@ fn run_firewall(
     direction: Direction,
     port: String,
     protocol: String,
-    addresses: Vec<String>,
-    droplet_names: Vec<String>,
-    kubernetes_cluster_names: Vec<String>,
-    load_balancer_names: Vec<String>,
+    addresses: Option<Vec<String>>,
+    droplet_names: Option<Vec<String>>,
+    kubernetes_cluster_names: Option<Vec<String>>,
+    load_balancer_names: Option<Vec<String>>,
     ip: IpAddr,
     _dry_run: bool,
 ) -> Result<Firewall, Error> {
     match fw_client.get_firewall(name)? {
         Some(firewall) => {
+            let all_addresses = Some({
+                let mut all_addresses = match addresses {
+                    Some(x) => x.clone(),
+                    None => Vec::new(),
+                };
+                all_addresses.push(ip.to_string());
+                all_addresses
+            });
+
+            let droplet_ids = names_to_ids(
+                || droplet_client.get_droplets(),
+                droplet_names,
+                |d| d.name.clone(),
+                |d| d.id,
+            )?;
+
+            let kubernetes_cluster_ids = names_to_ids(
+                || kubernetes_client.get_kubernetes_clusters(),
+                kubernetes_cluster_names,
+                |d| d.name.clone(),
+                |d| d.id.clone(),
+            )?;
+
+            let load_balancer_ids = names_to_ids(
+                || load_balancer_client.get_load_balancers(),
+                load_balancer_names,
+                |d| d.name.clone(),
+                |d| d.id.clone(),
+            )?;
+
             match direction {
-                Direction::Inbound => println!(
-                    "inbound port: {:?}",
-                    match firewall.inbound_rules {
+                Direction::Inbound => {
+                    let inbound_rule = match firewall.inbound_rules {
                         Some(ref rules) => rules
                             .iter()
-                            .find(|x| x.ports == port && x.protocol == protocol),
+                            .find(|x| x.ports == port && x.protocol == protocol)
+                            .unwrap_or_else(|| {
+                                panic!(
+                                    "Unable to find firewall rule for port {} and protocol {}",
+                                    port, protocol
+                                )
+                            }),
                         None => panic!("No inbound_rules available"),
-                    }
-                ),
-                Direction::Outbound => println!(
-                    "outbound port: {:?}",
-                    match firewall.outbound_rules {
+                    };
+                    run_firewall_inbound(
+                        fw_client,
+                        &firewall,
+                        inbound_rule,
+                        all_addresses,
+                        droplet_ids,
+                        kubernetes_cluster_ids,
+                        load_balancer_ids,
+                    )
+                }
+                Direction::Outbound => {
+                    let outbound_rule = match firewall.outbound_rules {
                         Some(ref rules) => rules
                             .iter()
-                            .find(|x| x.ports == port && x.protocol == protocol),
+                            .find(|x| x.ports == port && x.protocol == protocol)
+                            .unwrap_or_else(|| {
+                                panic!(
+                                    "Unable to find firewall rule for port {} and protocol {}",
+                                    port, protocol
+                                )
+                            }),
                         None => panic!("No outbound_rules available"),
-                    }
-                ),
-            };
-
-            let mut all_addresses = addresses.clone();
-            all_addresses.push(ip.to_string());
-            println!("allowed addresses: {:?}", all_addresses);
-
-            println!("allowed droplets (name): {:?}", droplet_names);
-            if !droplet_names.is_empty() {
-                let droplet_ids = names_to_ids(
-                    droplet_client.get_droplets()?,
-                    droplet_names,
-                    |d| d.name.clone(),
-                    |d| d.id,
-                );
-                println!("allowed droplets (id): {:?}", droplet_ids);
+                    };
+                    run_firewall_outbound(
+                        fw_client,
+                        &firewall,
+                        outbound_rule,
+                        all_addresses,
+                        droplet_ids,
+                        kubernetes_cluster_ids,
+                        load_balancer_ids,
+                    )
+                }
             }
-
-            println!("allowed load balancers (name): {:?}", load_balancer_names);
-            if !load_balancer_names.is_empty() {
-                let load_balancer_ids = names_to_ids(
-                    load_balancer_client.get_load_balancers()?,
-                    load_balancer_names,
-                    |d| d.name.clone(),
-                    |d| d.id.clone(),
-                );
-                println!("allowed load balancers (id): {:?}", load_balancer_ids);
-            }
-
-            println!(
-                "allowed kubernetes clusters (name): {:?}",
-                kubernetes_cluster_names
-            );
-            if !kubernetes_cluster_names.is_empty() {
-                let kubernetes_cluster_ids = names_to_ids(
-                    kubernetes_client.get_kubernetes_clusters()?,
-                    kubernetes_cluster_names,
-                    |d| d.name.clone(),
-                    |d| d.id.clone(),
-                );
-                println!(
-                    "allowed kubernetes clusters (id): {:?}",
-                    kubernetes_cluster_ids
-                );
-            }
-
-            Ok(firewall)
         }
         None => Err(Error::FirewallNotFound()),
     }
 }
 
-fn names_to_ids<K, N, T, KF, NF>(
-    objects: Vec<T>,
-    names: Vec<N>,
+fn run_firewall_inbound(
+    _fw_client: Box<dyn DigitalOceanFirewallClient>,
+    _firewall: &Firewall,
+    _inbound_rule: &FirewallInboundRule,
+    _addresses: Option<Vec<String>>,
+    _droplet_ids: Option<Vec<u32>>,
+    _kubernetes_cluster_ids: Option<Vec<String>>,
+    _load_balancer_ids: Option<Vec<String>>,
+) -> Result<Firewall, Error> {
+    unimplemented!()
+}
+
+fn run_firewall_outbound(
+    _fw_client: Box<dyn DigitalOceanFirewallClient>,
+    _firewall: &Firewall,
+    _outbound_rule: &FirewallOutboundRule,
+    _addresses: Option<Vec<String>>,
+    _droplet_ids: Option<Vec<u32>>,
+    _kubernetes_cluster_ids: Option<Vec<String>>,
+    _load_balancer_ids: Option<Vec<String>>,
+) -> Result<Firewall, Error> {
+    unimplemented!()
+}
+
+fn names_to_ids<K, N, T, OF, KF, NF>(
+    get_objects: OF,
+    names: Option<Vec<N>>,
     extract_name: NF,
     extract_key: KF,
-) -> Vec<K>
+) -> Result<Option<Vec<K>>, digitalocean::error::Error>
 where
     N: Eq + Hash + Display,
+    OF: Fn() -> Result<Vec<T>, digitalocean::error::Error>,
     KF: Fn(&T) -> K,
     NF: Fn(&T) -> N,
 {
-    let by_name = objects
-        .into_iter()
-        .map(|d| (extract_name(&d), d))
-        .collect::<HashMap<N, T>>();
     names
-        .into_iter()
-        .map(|name| match by_name.get(&name) {
-            Some(d) => extract_key(d),
-            None => panic!("Unable to find object with name {}", name),
+        .map(|ns| {
+            get_objects().map(|objects| {
+                let by_name = objects
+                    .into_iter()
+                    .map(|d| (extract_name(&d), d))
+                    .collect::<HashMap<N, T>>();
+                ns.into_iter()
+                    .map(|name| match by_name.get(&name) {
+                        Some(d) => extract_key(d),
+                        None => panic!("Unable to find object with name {}", name),
+                    })
+                    .collect::<Vec<K>>()
+            })
         })
-        .collect::<Vec<K>>()
+        .map_or(Ok(None), |r| r.map(Some))
 }
 
 #[allow(dead_code)]
