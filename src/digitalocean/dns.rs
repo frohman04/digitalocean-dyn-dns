@@ -150,7 +150,7 @@ impl DigitalOceanDnsClient for DigitalOceanDnsClientImpl {
             if resp.domain_record.data.parse::<IpAddr>()? == *value {
                 Ok(resp.domain_record)
             } else {
-                Err(Error::Update(
+                Err(Error::UpdateDns(
                     "New IP address not reflected in updated DNS record".to_string(),
                 ))
             }
@@ -207,7 +207,7 @@ impl DigitalOceanDnsClient for DigitalOceanDnsClientImpl {
             if resp.domain_record.data.parse::<IpAddr>()? == *value {
                 Ok(resp.domain_record)
             } else {
-                Err(Error::Create(
+                Err(Error::CreateDns(
                     "New IP address not reflected in new DNS record".to_string(),
                 ))
             }

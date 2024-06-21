@@ -1,10 +1,24 @@
-use crate::digitalocean::api::{DigitalOceanApiClient, Links, Meta};
+use crate::digitalocean::api::{DigitalOceanApiClient, ErrorResponse, Links, Meta};
 use crate::digitalocean::error::Error;
-use reqwest::Method;
-use serde::Deserialize;
+use reqwest::{Method, StatusCode};
+use serde::{Deserialize, Serialize};
 
 pub trait DigitalOceanFirewallClient {
     fn get_firewall(&self, name: String) -> Result<Option<Firewall>, Error>;
+
+    fn delete_firewall_rule(
+        &self,
+        id: &str,
+        inbound_rules: Option<Vec<FirewallInboundRule>>,
+        outbound_rules: Option<Vec<FirewallOutboundRule>>,
+    ) -> Result<(), Error>;
+
+    fn add_firewall_rule(
+        &self,
+        id: &str,
+        inbound_rules: Option<Vec<FirewallInboundRule>>,
+        outbound_rules: Option<Vec<FirewallOutboundRule>>,
+    ) -> Result<(), Error>;
 }
 
 pub struct DigitalOceanFirewallClientImpl {
@@ -29,7 +43,7 @@ impl DigitalOceanFirewallClient for DigitalOceanFirewallClientImpl {
                 .api
                 .get_request_builder(Method::GET, url.clone())
                 .send()?
-                .json::<crate::digitalocean::firewall::FirewallsResp>()?;
+                .json::<FirewallsResp>()?;
 
             obj = resp.firewalls.into_iter().find(|f| f.name == *name);
             if obj.is_some() {
@@ -43,6 +57,69 @@ impl DigitalOceanFirewallClient for DigitalOceanFirewallClientImpl {
         }
 
         Ok(obj)
+    }
+
+    /// Delete the provided rules from the firewall identified by `id`.
+    fn delete_firewall_rule(
+        &self,
+        id: &str,
+        inbound_rules: Option<Vec<FirewallInboundRule>>,
+        outbound_rules: Option<Vec<FirewallOutboundRule>>,
+    ) -> Result<(), Error> {
+        let url = self
+            .api
+            .get_url(format!("/v2/firewalls/{}/rules", id).as_str());
+
+        let resp = self
+            .api
+            .get_request_builder(Method::DELETE, url)
+            .json(&FirewallRuleBody {
+                inbound_rules,
+                outbound_rules,
+            })
+            .send()?;
+        match resp.status() {
+            StatusCode::NO_CONTENT => Ok(()),
+            code => {
+                let error = resp.json::<ErrorResponse>()?;
+                Err(Error::DeleteFirewallRule(format!(
+                    "Got unexpected HTTP error from API ({}): {:?}",
+                    code, error
+                )))
+            }
+        }
+    }
+
+    /// Add rules to the firewall identified by `id`.  Note that rules are defined by their entire
+    /// definition, so calling this will never overwrite an existing rule.
+    fn add_firewall_rule(
+        &self,
+        id: &str,
+        inbound_rules: Option<Vec<FirewallInboundRule>>,
+        outbound_rules: Option<Vec<FirewallOutboundRule>>,
+    ) -> Result<(), Error> {
+        let url = self
+            .api
+            .get_url(format!("/v2/firewalls/{}/rules", id).as_str());
+
+        let resp = self
+            .api
+            .get_request_builder(Method::POST, url)
+            .json(&FirewallRuleBody {
+                inbound_rules,
+                outbound_rules,
+            })
+            .send()?;
+        match resp.status() {
+            StatusCode::NO_CONTENT => Ok(()),
+            code => {
+                let error = resp.json::<ErrorResponse>()?;
+                Err(Error::CreateFirewallRule(format!(
+                    "Got unexpected HTTP error from API ({}): {:?}",
+                    code, error
+                )))
+            }
+        }
     }
 }
 
@@ -87,11 +164,11 @@ pub struct Firewall {
 #[allow(dead_code)]
 pub struct FirewallPendingChange {
     pub droplet_id: u32,
-    pub removing: String,
+    pub removing: bool,
     pub status: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[allow(dead_code)]
 pub struct FirewallInboundRule {
     /// The type of traffic to be allowed. This may be one of tcp, udp, or icmp.
@@ -104,7 +181,7 @@ pub struct FirewallInboundRule {
     pub sources: FirewallRuleTarget,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[allow(dead_code)]
 pub struct FirewallOutboundRule {
     /// The type of traffic to be allowed. This may be one of tcp, udp, or icmp.
@@ -117,20 +194,33 @@ pub struct FirewallOutboundRule {
     pub destinations: FirewallRuleTarget,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[allow(dead_code)]
 pub struct FirewallRuleTarget {
     /// An array of strings containing the IPv4 addresses, IPv6 addresses, IPv4 CIDRs, and/or IPv6
     /// CIDRs to which the firewall will allow traffic.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub addresses: Option<Vec<String>>,
     /// An array containing the IDs of the Droplets to which the firewall will allow traffic.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub droplet_ids: Option<Vec<u32>>,
     /// An array containing the IDs of the load balancers to which the firewall will allow traffic.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub load_balancer_uids: Option<Vec<String>>,
     /// An array containing the IDs of the Kubernetes clusters to which the firewall will allow
     /// traffic.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub kubernetes_ids: Option<Vec<String>>,
     /// A flat array of tag names as strings to be applied to the resource. Tag names may be for
     /// either existing or new tags.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct FirewallRuleBody {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inbound_rules: Option<Vec<FirewallInboundRule>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outbound_rules: Option<Vec<FirewallOutboundRule>>,
 }

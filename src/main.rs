@@ -26,6 +26,7 @@ use crate::digitalocean::dns::{DigitalOceanDnsClient, DomainRecord};
 use crate::digitalocean::droplet::DigitalOceanDropletClient;
 use crate::digitalocean::firewall::{
     DigitalOceanFirewallClient, Firewall, FirewallInboundRule, FirewallOutboundRule,
+    FirewallRuleTarget,
 };
 use crate::digitalocean::kubernetes::DigitalOceanKubernetesClient;
 use crate::digitalocean::loadbalancer::DigitalOceanLoadbalancerClient;
@@ -236,27 +237,89 @@ fn run_firewall(
 }
 
 fn run_firewall_inbound(
-    _fw_client: Box<dyn DigitalOceanFirewallClient>,
-    _firewall: &Firewall,
-    _inbound_rule: &FirewallInboundRule,
-    _addresses: Option<Vec<String>>,
-    _droplet_ids: Option<Vec<u32>>,
-    _kubernetes_cluster_ids: Option<Vec<String>>,
-    _load_balancer_ids: Option<Vec<String>>,
+    fw_client: Box<dyn DigitalOceanFirewallClient>,
+    firewall: &Firewall,
+    inbound_rule: &FirewallInboundRule,
+    addresses: Option<Vec<String>>,
+    droplet_ids: Option<Vec<u32>>,
+    kubernetes_cluster_ids: Option<Vec<String>>,
+    load_balancer_ids: Option<Vec<String>>,
 ) -> Result<Firewall, Error> {
-    unimplemented!()
+    info!(
+        "Deleting inbound rule on firewall {}\n{:#?}",
+        firewall.id, inbound_rule
+    );
+    fw_client.delete_firewall_rule(firewall.id.as_str(), Some(vec![inbound_rule.clone()]), None)?;
+
+    let new_inbound_rule = FirewallInboundRule {
+        protocol: inbound_rule.protocol.clone(),
+        ports: inbound_rule.ports.clone(),
+        sources: FirewallRuleTarget {
+            addresses,
+            droplet_ids,
+            kubernetes_ids: kubernetes_cluster_ids,
+            load_balancer_uids: load_balancer_ids,
+            tags: inbound_rule.sources.tags.clone(),
+        },
+    };
+
+    info!(
+        "Creating inbound rule on firewall {}\n{:#?}",
+        firewall.id, new_inbound_rule
+    );
+    fw_client.add_firewall_rule(firewall.id.as_str(), Some(vec![new_inbound_rule]), None)?;
+
+    info!("Fetching updated firewall");
+    let updated_firewall = fw_client
+        .get_firewall(firewall.name.clone())
+        .map(|f| f.expect("Unable to find firewall after modifying!"))?;
+
+    Ok(updated_firewall)
 }
 
 fn run_firewall_outbound(
-    _fw_client: Box<dyn DigitalOceanFirewallClient>,
-    _firewall: &Firewall,
-    _outbound_rule: &FirewallOutboundRule,
-    _addresses: Option<Vec<String>>,
-    _droplet_ids: Option<Vec<u32>>,
-    _kubernetes_cluster_ids: Option<Vec<String>>,
-    _load_balancer_ids: Option<Vec<String>>,
+    fw_client: Box<dyn DigitalOceanFirewallClient>,
+    firewall: &Firewall,
+    outbound_rule: &FirewallOutboundRule,
+    addresses: Option<Vec<String>>,
+    droplet_ids: Option<Vec<u32>>,
+    kubernetes_cluster_ids: Option<Vec<String>>,
+    load_balancer_ids: Option<Vec<String>>,
 ) -> Result<Firewall, Error> {
-    unimplemented!()
+    info!(
+        "Deleting outbound rule on firewall {}\n{:#?}",
+        firewall.id, outbound_rule
+    );
+    fw_client.delete_firewall_rule(
+        firewall.id.as_str(),
+        None,
+        Some(vec![outbound_rule.clone()]),
+    )?;
+
+    let new_outbound_rule = FirewallOutboundRule {
+        protocol: outbound_rule.protocol.clone(),
+        ports: outbound_rule.ports.clone(),
+        destinations: FirewallRuleTarget {
+            addresses,
+            droplet_ids,
+            kubernetes_ids: kubernetes_cluster_ids,
+            load_balancer_uids: load_balancer_ids,
+            tags: outbound_rule.destinations.tags.clone(),
+        },
+    };
+
+    info!(
+        "Creating outbound rule on firewall {}\n{:#?}",
+        firewall.id, new_outbound_rule
+    );
+    fw_client.add_firewall_rule(firewall.id.as_str(), None, Some(vec![new_outbound_rule]))?;
+
+    info!("Fetching updated firewall");
+    let updated_firewall = fw_client
+        .get_firewall(firewall.name.clone())
+        .map(|f| f.expect("Unable to find firewall after modifying!"))?;
+
+    Ok(updated_firewall)
 }
 
 fn names_to_ids<K, N, T, OF, KF, NF>(
@@ -500,7 +563,7 @@ mod test {
                     Ok(None)
                 }
             } else {
-                Err(Error::Create("foo".to_string()))
+                Err(Error::CreateDns("foo".to_string()))
             }
         }
 
@@ -523,7 +586,7 @@ mod test {
                     Ok(None)
                 }
             } else {
-                Err(Error::Create("foo".to_string()))
+                Err(Error::CreateDns("foo".to_string()))
             }
         }
 
@@ -549,7 +612,7 @@ mod test {
                     tag: None,
                 })
             } else {
-                Err(Error::Update("foo".to_string()))
+                Err(Error::UpdateDns("foo".to_string()))
             }
         }
 
@@ -576,7 +639,7 @@ mod test {
                     tag: None,
                 })
             } else {
-                Err(Error::Create("foo".to_string()))
+                Err(Error::CreateDns("foo".to_string()))
             }
         }
     }

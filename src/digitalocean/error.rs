@@ -3,8 +3,10 @@
 pub enum Error {
     Request(reqwest::Error),
     IpParse(std::net::AddrParseError),
-    Update(String),
-    Create(String),
+    UpdateDns(String),
+    CreateDns(String),
+    DeleteFirewallRule(String),
+    CreateFirewallRule(String),
 }
 
 impl From<reqwest::Error> for Error {
@@ -30,8 +32,10 @@ impl PartialEq for Error {
         match (self, other) {
             (Self::Request(_), Self::Request(_)) => false,
             (Self::IpParse(e1), Self::IpParse(e2)) => e1.to_string() == e2.to_string(),
-            (Self::Update(e1), Self::Update(e2)) => e1 == e2,
-            (Self::Create(e1), Self::Create(e2)) => e1 == e2,
+            (Self::UpdateDns(e1), Self::UpdateDns(e2)) => e1 == e2,
+            (Self::CreateDns(e1), Self::CreateDns(e2)) => e1 == e2,
+            (Self::DeleteFirewallRule(e1), Self::DeleteFirewallRule(e2)) => e1 == e2,
+            (Self::CreateFirewallRule(e1), Self::CreateFirewallRule(e2)) => e1 == e2,
             _ => false,
         }
     }

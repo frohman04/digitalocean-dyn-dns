@@ -65,3 +65,13 @@ pub struct Pages {
     pub next: Option<String>,
     pub last: Option<String>,
 }
+
+// common error message format
+
+#[derive(Deserialize, Debug)]
+#[allow(dead_code)]
+pub struct ErrorResponse {
+    pub id: String,
+    pub message: String,
+    pub request_id: Option<String>,
+}
