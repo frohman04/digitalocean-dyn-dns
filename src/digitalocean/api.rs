@@ -70,6 +70,45 @@ impl DigitalOceanApiClient {
         Ok(objects)
     }
 
+    pub fn get_object_by_name<R: DeserializeOwned, T, TE, LE, NE>(
+        &self,
+        name: &str,
+        url: String,
+        value_extractor: TE,
+        link_extractor: LE,
+        name_checker: NE,
+    ) -> Result<Option<T>, Error>
+    where
+        TE: Fn(R) -> Vec<T>,
+        LE: Fn(&R) -> Links,
+        NE: Fn(&T, &str) -> bool,
+    {
+        let mut url = url;
+        let mut exit = false;
+        let mut obj: Option<T> = None;
+
+        while !exit {
+            let resp = self
+                .get_request_builder(Method::GET, url.clone())
+                .send()?
+                .json::<R>()?;
+
+            let links = link_extractor(&resp);
+            obj = value_extractor(resp)
+                .into_iter()
+                .find(|v| name_checker(v, name));
+            if obj.is_some() {
+                exit = true;
+            } else if links.pages.is_some() && links.pages.clone().unwrap().next.is_some() {
+                url = links.pages.unwrap().next.unwrap();
+            } else {
+                exit = true;
+            }
+        }
+
+        Ok(obj)
+    }
+
     #[cfg(test)]
     pub fn new_for_test(token: String, base_url: String) -> DigitalOceanApiClient {
         DigitalOceanApiClient {

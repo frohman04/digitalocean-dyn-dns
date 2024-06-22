@@ -82,31 +82,14 @@ impl DigitalOceanDnsClient for DigitalOceanDnsClientImpl {
         record: &str,
         rtype: &str,
     ) -> Result<Option<DomainRecord>, Error> {
-        let mut url = self
-            .api
-            .get_url(format!("/v2/domains/{}/records?type={}", domain, rtype).as_str());
-        let mut exit = false;
-        let mut obj: Option<DomainRecord> = None;
-
-        while !exit {
-            let resp = self
-                .api
-                .get_request_builder(Method::GET, url.clone())
-                .send()?
-                .json::<DomainRecordsResp>()?;
-
-            obj = resp.domain_records.into_iter().find(|r| r.name == *record);
-            if obj.is_some() {
-                exit = true;
-            } else if resp.links.pages.is_some() && resp.links.pages.clone().unwrap().next.is_some()
-            {
-                url = resp.links.pages.unwrap().next.unwrap();
-            } else {
-                exit = true;
-            }
-        }
-
-        Ok(obj)
+        self.api.get_object_by_name(
+            record,
+            self.api
+                .get_url(format!("/v2/domains/{}/records?type={}", domain, rtype).as_str()),
+            |r: DomainRecordsResp| r.domain_records,
+            |r: &DomainRecordsResp| r.links.clone(),
+            |t: &DomainRecord, name: &str| t.name == *name,
+        )
     }
 
     /// Update an existing DNS A/AAAA record to point to a new IP address

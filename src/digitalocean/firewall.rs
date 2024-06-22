@@ -37,29 +37,13 @@ impl DigitalOceanFirewallClientImpl {
 impl DigitalOceanFirewallClient for DigitalOceanFirewallClientImpl {
     /// Get the named firewall's current configuration.
     fn get_firewall(&self, name: String) -> Result<Option<Firewall>, Error> {
-        let mut url = self.api.get_url("/v2/firewalls");
-        let mut exit = false;
-        let mut obj: Option<Firewall> = None;
-
-        while !exit {
-            let resp = self
-                .api
-                .get_request_builder(Method::GET, url.clone())
-                .send()?
-                .json::<FirewallsResp>()?;
-
-            obj = resp.firewalls.into_iter().find(|f| f.name == *name);
-            if obj.is_some() {
-                exit = true;
-            } else if resp.links.pages.is_some() && resp.links.pages.clone().unwrap().next.is_some()
-            {
-                url = resp.links.pages.unwrap().next.unwrap();
-            } else {
-                exit = true;
-            }
-        }
-
-        Ok(obj)
+        self.api.get_object_by_name(
+            name.as_str(),
+            self.api.get_url("/v2/firewalls"),
+            |r: FirewallsResp| r.firewalls,
+            |r: &FirewallsResp| r.links.clone(),
+            |t: &Firewall, name: &str| t.name == *name,
+        )
     }
 
     /// Delete the provided rules from the firewall identified by `id`.
