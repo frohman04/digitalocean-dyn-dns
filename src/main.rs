@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+#[cfg(test)]
+extern crate approx;
 extern crate clap;
 #[cfg(test)]
 extern crate mockito;

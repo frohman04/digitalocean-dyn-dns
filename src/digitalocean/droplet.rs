@@ -37,7 +37,7 @@ struct DropletsResp {
     links: Links,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq)]
 #[allow(dead_code)]
 pub struct Droplet {
     /// A unique identifier for each Droplet instance. This is automatically generated upon Droplet
@@ -95,7 +95,7 @@ pub struct Droplet {
     pub vpc_uuid: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct DropletKernel {
     /// A unique number used to identify and reference a specific kernel.
@@ -107,7 +107,7 @@ pub struct DropletKernel {
     pub version: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct DropletNextBackupWindow {
     /// A time value given in ISO8601 combined date and time format specifying the start of the
@@ -118,7 +118,7 @@ pub struct DropletNextBackupWindow {
     pub end: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq)]
 #[allow(dead_code)]
 pub struct DropletImage {
     /// A unique number that can be used to identify and reference a specific image.
@@ -169,7 +169,7 @@ pub struct DropletImage {
     pub error_message: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq)]
 #[allow(dead_code)]
 pub struct DropletSize {
     /// A human-readable string that is used to uniquely identify each size.
@@ -200,14 +200,14 @@ pub struct DropletSize {
     pub description: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct DropletNetworks {
     pub v4: Vec<DropletNetworkV4>,
     pub v6: Vec<DropletNetworkV6>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct DropletNetworkV4 {
     /// The IP address of the IPv4 network interface.
@@ -224,7 +224,7 @@ pub struct DropletNetworkV4 {
     pub typ: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct DropletNetworkV6 {
     /// The IP address of the IPv6 network interface.
@@ -240,7 +240,7 @@ pub struct DropletNetworkV6 {
     pub typ: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct DropletRegion {
     /// The display name of the region. This will be a full name that is used in the control panel
@@ -255,4 +255,373 @@ pub struct DropletRegion {
     /// This attribute is set to an array which contains the identifying slugs for the sizes
     /// available in this region.
     pub sizes: Vec<String>,
+}
+
+#[cfg(test)]
+mod test {
+    use crate::digitalocean::droplet::{
+        Droplet, DropletImage, DropletNetworkV4, DropletNetworks, DropletNextBackupWindow,
+        DropletRegion, DropletSize,
+    };
+    use crate::digitalocean::DigitalOceanClient;
+
+    fn get_droplet_1_json() -> serde_json::Value {
+        json!({
+            "id": 1,
+            "name": "bar",
+            "memory": 64,
+            "vcpus": 2,
+            "disk": 100,
+            "locked": false,
+            "status": "active",
+            "kernel": null,
+            "created_at": "2024-01-01T04:23:45Z",
+            "features": ["backup"],
+            "backup_ids": [12345],
+            "next_backup_window": {
+                "start": "2024-01-02T06:00:00Z",
+                "end": "2024-01-02T07:00:00Z"
+            },
+            "snapshot_ids": [67890],
+            "image": {
+                "id": 42,
+                "name": "image1",
+                "type": "backup",
+                "distribution": "Ubuntu",
+                "slug": "ubuntu",
+                "public": true,
+                "regions": ["nyc1"],
+                "created_at": "2024-01-01T00:00:00Z",
+                "min_disk_size": 100,
+                "size_gigabytes": 64.1,
+                "description": "initial backup after creation",
+                "tags": ["amazing"],
+                "status": "available",
+                "error_message": null,
+            },
+            "volume_ids": [],
+            "size": {
+                "slug": "small",
+                "memory": 64,
+                "vcpus": 2,
+                "disk": 100,
+                "transfer": 1.0,
+                "price_monthly": 360.0,
+                "price_hourly": 0.5,
+                "regions": ["nyc1", "nyc2"],
+                "available": true,
+                "description": "a small instance for dev",
+            },
+            "size_slug": "small",
+            "networks": {
+                "v4": [{
+                    "ip_address": "1.2.3.4",
+                    "netmask": "1.2.3.0/28",
+                    "gateway": "1.2.3.0",
+                    "type": "public",
+                }],
+                "v6": [],
+            },
+            "region": {
+                "name": "NYC 1",
+                "slug": "nyc1",
+                "features": ["backup"],
+                "available": true,
+                "sizes": ["small"],
+            },
+            "tags": ["awesome"],
+            "vpc_uuid": "123-456-789",
+        })
+    }
+
+    fn get_droplet_1_obj() -> Droplet {
+        #[allow(deprecated)]
+        Droplet {
+            id: 1,
+            name: "bar".to_string(),
+            memory: 64,
+            vcpus: 2,
+            disk: 100,
+            locked: false,
+            status: "active".to_string(),
+            kernel: None,
+            created_at: "2024-01-01T04:23:45Z".to_string(),
+            features: vec!["backup".to_string()],
+            backup_ids: vec![12345],
+            next_backup_window: Some(DropletNextBackupWindow {
+                start: "2024-01-02T06:00:00Z".to_string(),
+                end: "2024-01-02T07:00:00Z".to_string(),
+            }),
+            snapshot_ids: vec![67890],
+            image: DropletImage {
+                id: 42,
+                name: "image1".to_string(),
+                typ: "backup".to_string(),
+                distribution: "Ubuntu".to_string(),
+                slug: Some("ubuntu".to_string()),
+                public: true,
+                regions: vec!["nyc1".to_string()],
+                created_at: "2024-01-01T00:00:00Z".to_string(),
+                min_disk_size: Some(100),
+                size_gigabytes: Some(64.1),
+                description: Some("initial backup after creation".to_string()),
+                tags: vec!["amazing".to_string()],
+                status: "available".to_string(),
+                error_message: None,
+            },
+            volume_ids: vec![],
+            size: DropletSize {
+                slug: "small".to_string(),
+                memory: 64,
+                vcpus: 2,
+                disk: 100,
+                transfer: 1.0,
+                price_monthly: 360.0,
+                price_hourly: 0.5,
+                regions: vec!["nyc1".to_string(), "nyc2".to_string()],
+                available: true,
+                description: "a small instance for dev".to_string(),
+            },
+            size_slug: "small".to_string(),
+            networks: DropletNetworks {
+                v4: vec![DropletNetworkV4 {
+                    ip_address: "1.2.3.4".to_string(),
+                    netmask: "1.2.3.0/28".to_string(),
+                    gateway: Some("1.2.3.0".to_string()),
+                    typ: "public".to_string(),
+                }],
+                v6: vec![],
+            },
+            region: DropletRegion {
+                name: "NYC 1".to_string(),
+                slug: "nyc1".to_string(),
+                features: vec!["backup".to_string()],
+                available: true,
+                sizes: vec!["small".to_string()],
+            },
+            tags: vec!["awesome".to_string()],
+            vpc_uuid: "123-456-789".to_string(),
+        }
+    }
+
+    fn get_droplet_2_json() -> serde_json::Value {
+        json!({
+            "id": 2,
+            "name": "snake",
+            "memory": 32,
+            "vcpus": 1,
+            "disk": 200,
+            "locked": false,
+            "status": "active",
+            "kernel": null,
+            "created_at": "2023-01-01T04:23:45Z",
+            "features": ["backup"],
+            "backup_ids": [1234],
+            "next_backup_window": {
+                "start": "2024-02-02T06:00:00Z",
+                "end": "2024-02-02T07:00:00Z"
+            },
+            "snapshot_ids": [6789],
+            "image": {
+                "id": 21,
+                "name": "image2",
+                "type": "backup",
+                "distribution": "Debian",
+                "slug": "debian",
+                "public": true,
+                "regions": ["nyc1"],
+                "created_at": "2020-01-01T00:00:00Z",
+                "min_disk_size": 50,
+                "size_gigabytes": 34.1,
+                "description": "initial backup after creation",
+                "tags": ["amazing"],
+                "status": "available",
+                "error_message": null,
+            },
+            "volume_ids": [],
+            "size": {
+                "slug": "small",
+                "memory": 64,
+                "vcpus": 2,
+                "disk": 100,
+                "transfer": 1.0,
+                "price_monthly": 360.0,
+                "price_hourly": 0.5,
+                "regions": ["nyc1", "nyc2"],
+                "available": true,
+                "description": "a small instance for dev",
+            },
+            "size_slug": "small",
+            "networks": {
+                "v4": [{
+                    "ip_address": "10.20.30.41",
+                    "netmask": "10.20.30.40/28",
+                    "gateway": "1.2.3.0",
+                    "type": "public",
+                }],
+                "v6": [],
+            },
+            "region": {
+                "name": "NYC 1",
+                "slug": "nyc1",
+                "features": ["backup"],
+                "available": true,
+                "sizes": ["small"],
+            },
+            "tags": ["awesome"],
+            "vpc_uuid": "123-456-789",
+        })
+    }
+
+    fn get_droplet_2_obj() -> Droplet {
+        #[allow(deprecated)]
+        Droplet {
+            id: 2,
+            name: "snake".to_string(),
+            memory: 32,
+            vcpus: 1,
+            disk: 200,
+            locked: false,
+            status: "active".to_string(),
+            kernel: None,
+            created_at: "2023-01-01T04:23:45Z".to_string(),
+            features: vec!["backup".to_string()],
+            backup_ids: vec![1234],
+            next_backup_window: Some(DropletNextBackupWindow {
+                start: "2024-02-02T06:00:00Z".to_string(),
+                end: "2024-02-02T07:00:00Z".to_string(),
+            }),
+            snapshot_ids: vec![6789],
+            image: DropletImage {
+                id: 21,
+                name: "image2".to_string(),
+                typ: "backup".to_string(),
+                distribution: "Debian".to_string(),
+                slug: Some("debian".to_string()),
+                public: true,
+                regions: vec!["nyc1".to_string()],
+                created_at: "2020-01-01T00:00:00Z".to_string(),
+                min_disk_size: Some(50),
+                size_gigabytes: Some(34.1),
+                description: Some("initial backup after creation".to_string()),
+                tags: vec!["amazing".to_string()],
+                status: "available".to_string(),
+                error_message: None,
+            },
+            volume_ids: vec![],
+            size: DropletSize {
+                slug: "small".to_string(),
+                memory: 64,
+                vcpus: 2,
+                disk: 100,
+                transfer: 1.0,
+                price_monthly: 360.0,
+                price_hourly: 0.5,
+                regions: vec!["nyc1".to_string(), "nyc2".to_string()],
+                available: true,
+                description: "a small instance for dev".to_string(),
+            },
+            size_slug: "small".to_string(),
+            networks: DropletNetworks {
+                v4: vec![DropletNetworkV4 {
+                    ip_address: "10.20.30.41".to_string(),
+                    netmask: "10.20.30.40/28".to_string(),
+                    gateway: Some("1.2.3.0".to_string()),
+                    typ: "public".to_string(),
+                }],
+                v6: vec![],
+            },
+            region: DropletRegion {
+                name: "NYC 1".to_string(),
+                slug: "nyc1".to_string(),
+                features: vec!["backup".to_string()],
+                available: true,
+                sizes: vec!["small".to_string()],
+            },
+            tags: vec!["awesome".to_string()],
+            vpc_uuid: "123-456-789".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_get_droplets() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/droplets")
+            .match_header("Authorization", "Bearer foo")
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "droplets": [
+                        get_droplet_1_json(),
+                        get_droplet_2_json(),
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .droplet
+            .get_droplets();
+        assert_eq!(Ok(vec![get_droplet_1_obj(), get_droplet_2_obj()]), resp);
+        _m.assert();
+    }
+
+    #[test]
+    fn test_get_droplets_paginated() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/droplets")
+            .match_header("Authorization", "Bearer foo")
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "droplets": [
+                        get_droplet_1_json(),
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {
+                        "pages": {
+                            "next": format!("{}/v2/droplets?page=2", server.url())
+                        }
+                    }
+                }))
+                .unwrap(),
+            )
+            .create();
+        let _m_page2 = server
+            .mock("GET", "/v2/droplets?page=2")
+            .match_header("Authorization", "Bearer foo")
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "droplets": [
+                        get_droplet_2_json(),
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .droplet
+            .get_droplets();
+        assert_eq!(Ok(vec![get_droplet_1_obj(), get_droplet_2_obj()]), resp);
+        _m.assert();
+        _m_page2.assert();
+    }
 }
