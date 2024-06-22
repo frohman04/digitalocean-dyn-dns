@@ -270,7 +270,7 @@ fn update_firewall(
     firewall: Firewall,
     inbound_rule_replacement: Option<(FirewallInboundRule, FirewallInboundRule)>,
     outbound_rule_replacement: Option<(FirewallOutboundRule, FirewallOutboundRule)>,
-    _dry_run: bool,
+    dry_run: bool,
 ) -> Result<Firewall, Error> {
     let (inbound_rule, new_inbound_rule) = match inbound_rule_replacement {
         Some((ir, nir)) => (Some(vec![ir.clone()]), Some(vec![nir])),
@@ -293,7 +293,7 @@ fn update_firewall(
             firewall.id, outbound_rule
         );
     }
-    fw_client.delete_firewall_rule(firewall.id.as_str(), inbound_rule, outbound_rule)?;
+    fw_client.delete_firewall_rule(firewall.id.as_str(), inbound_rule, outbound_rule, &dry_run)?;
 
     if new_inbound_rule.is_some() {
         info!(
@@ -307,7 +307,12 @@ fn update_firewall(
             firewall.id, new_outbound_rule
         );
     }
-    fw_client.add_firewall_rule(firewall.id.as_str(), new_inbound_rule, new_outbound_rule)?;
+    fw_client.add_firewall_rule(
+        firewall.id.as_str(),
+        new_inbound_rule,
+        new_outbound_rule,
+        &dry_run,
+    )?;
 
     info!("Fetching updated firewall");
     let updated_firewall = fw_client

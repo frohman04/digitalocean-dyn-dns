@@ -2,6 +2,7 @@ use crate::digitalocean::api::{DigitalOceanApiClient, ErrorResponse, Links, Meta
 use crate::digitalocean::error::Error;
 use reqwest::{Method, StatusCode};
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 pub trait DigitalOceanFirewallClient {
     fn get_firewall(&self, name: String) -> Result<Option<Firewall>, Error>;
@@ -11,6 +12,7 @@ pub trait DigitalOceanFirewallClient {
         id: &str,
         inbound_rules: Option<Vec<FirewallInboundRule>>,
         outbound_rules: Option<Vec<FirewallOutboundRule>>,
+        dry_run: &bool,
     ) -> Result<(), Error>;
 
     fn add_firewall_rule(
@@ -18,6 +20,7 @@ pub trait DigitalOceanFirewallClient {
         id: &str,
         inbound_rules: Option<Vec<FirewallInboundRule>>,
         outbound_rules: Option<Vec<FirewallOutboundRule>>,
+        dry_run: &bool,
     ) -> Result<(), Error>;
 }
 
@@ -65,27 +68,36 @@ impl DigitalOceanFirewallClient for DigitalOceanFirewallClientImpl {
         id: &str,
         inbound_rules: Option<Vec<FirewallInboundRule>>,
         outbound_rules: Option<Vec<FirewallOutboundRule>>,
+        dry_run: &bool,
     ) -> Result<(), Error> {
-        let url = self
-            .api
-            .get_url(format!("/v2/firewalls/{}/rules", id).as_str());
+        if *dry_run {
+            info!(
+                "DRY RUN: Delete following rules from firewall {}\ninbound: {:#?}\noutbound: {:#?}",
+                id, inbound_rules, outbound_rules
+            );
+            Ok(())
+        } else {
+            let url = self
+                .api
+                .get_url(format!("/v2/firewalls/{}/rules", id).as_str());
 
-        let resp = self
-            .api
-            .get_request_builder(Method::DELETE, url)
-            .json(&FirewallRuleBody {
-                inbound_rules,
-                outbound_rules,
-            })
-            .send()?;
-        match resp.status() {
-            StatusCode::NO_CONTENT => Ok(()),
-            code => {
-                let error = resp.json::<ErrorResponse>()?;
-                Err(Error::DeleteFirewallRule(format!(
-                    "Got unexpected HTTP error from API ({}): {:?}",
-                    code, error
-                )))
+            let resp = self
+                .api
+                .get_request_builder(Method::DELETE, url)
+                .json(&FirewallRuleBody {
+                    inbound_rules,
+                    outbound_rules,
+                })
+                .send()?;
+            match resp.status() {
+                StatusCode::NO_CONTENT => Ok(()),
+                code => {
+                    let error = resp.json::<ErrorResponse>()?;
+                    Err(Error::DeleteFirewallRule(format!(
+                        "Got unexpected HTTP error from API ({}): {:?}",
+                        code, error
+                    )))
+                }
             }
         }
     }
@@ -97,27 +109,36 @@ impl DigitalOceanFirewallClient for DigitalOceanFirewallClientImpl {
         id: &str,
         inbound_rules: Option<Vec<FirewallInboundRule>>,
         outbound_rules: Option<Vec<FirewallOutboundRule>>,
+        dry_run: &bool,
     ) -> Result<(), Error> {
-        let url = self
-            .api
-            .get_url(format!("/v2/firewalls/{}/rules", id).as_str());
+        if *dry_run {
+            info!(
+                "DRY RUN: Adding following rules to firewall {}\ninbound: {:?}\noutbound: {:?}",
+                id, inbound_rules, outbound_rules
+            );
+            Ok(())
+        } else {
+            let url = self
+                .api
+                .get_url(format!("/v2/firewalls/{}/rules", id).as_str());
 
-        let resp = self
-            .api
-            .get_request_builder(Method::POST, url)
-            .json(&FirewallRuleBody {
-                inbound_rules,
-                outbound_rules,
-            })
-            .send()?;
-        match resp.status() {
-            StatusCode::NO_CONTENT => Ok(()),
-            code => {
-                let error = resp.json::<ErrorResponse>()?;
-                Err(Error::CreateFirewallRule(format!(
-                    "Got unexpected HTTP error from API ({}): {:?}",
-                    code, error
-                )))
+            let resp = self
+                .api
+                .get_request_builder(Method::POST, url)
+                .json(&FirewallRuleBody {
+                    inbound_rules,
+                    outbound_rules,
+                })
+                .send()?;
+            match resp.status() {
+                StatusCode::NO_CONTENT => Ok(()),
+                code => {
+                    let error = resp.json::<ErrorResponse>()?;
+                    Err(Error::CreateFirewallRule(format!(
+                        "Got unexpected HTTP error from API ({}): {:?}",
+                        code, error
+                    )))
+                }
             }
         }
     }
