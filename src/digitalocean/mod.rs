@@ -8,6 +8,7 @@ use crate::digitalocean::kubernetes::{
 use crate::digitalocean::loadbalancer::{
     DigitalOceanLoadbalancerClient, DigitalOceanLoadbalancerClientImpl,
 };
+use std::rc::Rc;
 
 pub mod api;
 pub mod dns;
@@ -20,11 +21,11 @@ pub mod loadbalancer;
 #[allow(dead_code)]
 pub struct DigitalOceanClient {
     api: DigitalOceanApiClient,
-    pub dns: Box<dyn DigitalOceanDnsClient>,
-    pub droplet: Box<dyn DigitalOceanDropletClient>,
-    pub firewall: Box<dyn DigitalOceanFirewallClient>,
-    pub kubernetes: Box<dyn DigitalOceanKubernetesClient>,
-    pub load_balancer: Box<dyn DigitalOceanLoadbalancerClient>,
+    pub dns: Rc<dyn DigitalOceanDnsClient>,
+    pub droplet: Rc<dyn DigitalOceanDropletClient>,
+    pub firewall: Rc<dyn DigitalOceanFirewallClient>,
+    pub kubernetes: Rc<dyn DigitalOceanKubernetesClient>,
+    pub load_balancer: Rc<dyn DigitalOceanLoadbalancerClient>,
 }
 
 impl DigitalOceanClient {
@@ -35,11 +36,11 @@ impl DigitalOceanClient {
     fn new_for_client(api: DigitalOceanApiClient) -> DigitalOceanClient {
         DigitalOceanClient {
             api: api.clone(),
-            dns: Box::new(DigitalOceanDnsClientImpl::new(api.clone())),
-            droplet: Box::new(DigitalOceanDropletClientImpl::new(api.clone())),
-            firewall: Box::new(DigitalOceanFirewallClientImpl::new(api.clone())),
-            kubernetes: Box::new(DigitalOceanKubernetesClientImpl::new(api.clone())),
-            load_balancer: Box::new(DigitalOceanLoadbalancerClientImpl::new(api)),
+            dns: Rc::new(DigitalOceanDnsClientImpl::new(api.clone())),
+            droplet: Rc::new(DigitalOceanDropletClientImpl::new(api.clone())),
+            firewall: Rc::new(DigitalOceanFirewallClientImpl::new(api.clone())),
+            kubernetes: Rc::new(DigitalOceanKubernetesClientImpl::new(api.clone())),
+            load_balancer: Rc::new(DigitalOceanLoadbalancerClientImpl::new(api)),
         }
     }
 

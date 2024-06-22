@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::net::IpAddr;
+use std::rc::Rc;
 
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
@@ -61,8 +62,8 @@ fn main() {
             .expect("Encountered error while updating DNS record");
         }
         SubcmdArgs::Firewall(fw_args) => {
-            run_firewall(
-                client.firewall,
+            let (firewall, inbound_rule, outbound_rule) = build_firewall_args(
+                client.firewall.clone(),
                 client.droplet,
                 client.kubernetes,
                 client.load_balancer,
@@ -75,6 +76,13 @@ fn main() {
                 fw_args.kubernetes_clusters,
                 fw_args.load_balancers,
                 args.ip,
+            )
+            .expect("Encountered error while constructing firewall rules");
+            update_firewall(
+                client.firewall,
+                firewall,
+                inbound_rule,
+                outbound_rule,
                 args.dry_run,
             )
             .expect("Encountered error while updating firewall");
@@ -93,7 +101,7 @@ fn fix_ansi_term() -> bool {
 }
 
 fn run_dns(
-    client: Box<dyn DigitalOceanDnsClient>,
+    client: Rc<dyn DigitalOceanDnsClient>,
     domain: String,
     record_name: String,
     rtype: String,
@@ -134,12 +142,12 @@ fn run_dns(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn run_firewall(
-    fw_client: Box<dyn DigitalOceanFirewallClient>,
-    droplet_client: Box<dyn DigitalOceanDropletClient>,
-    kubernetes_client: Box<dyn DigitalOceanKubernetesClient>,
-    load_balancer_client: Box<dyn DigitalOceanLoadbalancerClient>,
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn build_firewall_args(
+    fw_client: Rc<dyn DigitalOceanFirewallClient>,
+    droplet_client: Rc<dyn DigitalOceanDropletClient>,
+    kubernetes_client: Rc<dyn DigitalOceanKubernetesClient>,
+    load_balancer_client: Rc<dyn DigitalOceanLoadbalancerClient>,
     name: String,
     direction: Direction,
     port: String,
@@ -149,8 +157,14 @@ fn run_firewall(
     kubernetes_cluster_names: Option<Vec<String>>,
     load_balancer_names: Option<Vec<String>>,
     ip: IpAddr,
-    _dry_run: bool,
-) -> Result<Firewall, Error> {
+) -> Result<
+    (
+        Firewall,
+        Option<(FirewallInboundRule, FirewallInboundRule)>,
+        Option<(FirewallOutboundRule, FirewallOutboundRule)>,
+    ),
+    Error,
+> {
     match fw_client.get_firewall(name)? {
         Some(firewall) => {
             let all_addresses = Some({
@@ -194,18 +208,23 @@ fn run_firewall(
                                     "Unable to find firewall rule for port {} and protocol {}",
                                     port, protocol
                                 )
-                            }),
+                            })
+                            .clone(),
                         None => panic!("No inbound_rules available"),
                     };
-                    run_firewall_inbound(
-                        fw_client,
-                        &firewall,
-                        inbound_rule,
-                        all_addresses,
-                        droplet_ids,
-                        kubernetes_cluster_ids,
-                        load_balancer_ids,
-                    )
+                    let new_inbound_rule = FirewallInboundRule {
+                        protocol: inbound_rule.protocol.clone(),
+                        ports: inbound_rule.ports.clone(),
+                        sources: FirewallRuleTarget {
+                            addresses: all_addresses,
+                            droplet_ids,
+                            kubernetes_ids: kubernetes_cluster_ids,
+                            load_balancer_uids: load_balancer_ids,
+                            tags: inbound_rule.sources.tags.clone(),
+                        },
+                    };
+
+                    Ok((firewall, Some((inbound_rule, new_inbound_rule)), None))
                 }
                 Direction::Outbound => {
                     let outbound_rule = match firewall.outbound_rules {
@@ -217,18 +236,28 @@ fn run_firewall(
                                     "Unable to find firewall rule for port {} and protocol {}",
                                     port, protocol
                                 )
-                            }),
+                            })
+                            .clone(),
                         None => panic!("No outbound_rules available"),
                     };
-                    run_firewall_outbound(
-                        fw_client,
-                        &firewall,
-                        outbound_rule,
-                        all_addresses,
-                        droplet_ids,
-                        kubernetes_cluster_ids,
-                        load_balancer_ids,
-                    )
+
+                    let new_outbound_rule = FirewallOutboundRule {
+                        protocol: outbound_rule.protocol.clone(),
+                        ports: outbound_rule.ports.clone(),
+                        destinations: FirewallRuleTarget {
+                            addresses: all_addresses,
+                            droplet_ids,
+                            kubernetes_ids: kubernetes_cluster_ids,
+                            load_balancer_uids: load_balancer_ids,
+                            tags: outbound_rule.destinations.tags.clone(),
+                        },
+                    };
+
+                    Ok((
+                        firewall,
+                        None,
+                        Some((outbound_rule.clone(), new_outbound_rule)),
+                    ))
                 }
             }
         }
@@ -236,83 +265,49 @@ fn run_firewall(
     }
 }
 
-fn run_firewall_inbound(
-    fw_client: Box<dyn DigitalOceanFirewallClient>,
-    firewall: &Firewall,
-    inbound_rule: &FirewallInboundRule,
-    addresses: Option<Vec<String>>,
-    droplet_ids: Option<Vec<u32>>,
-    kubernetes_cluster_ids: Option<Vec<String>>,
-    load_balancer_ids: Option<Vec<String>>,
+fn update_firewall(
+    fw_client: Rc<dyn DigitalOceanFirewallClient>,
+    firewall: Firewall,
+    inbound_rule_replacement: Option<(FirewallInboundRule, FirewallInboundRule)>,
+    outbound_rule_replacement: Option<(FirewallOutboundRule, FirewallOutboundRule)>,
+    _dry_run: bool,
 ) -> Result<Firewall, Error> {
-    info!(
-        "Deleting inbound rule on firewall {}\n{:#?}",
-        firewall.id, inbound_rule
-    );
-    fw_client.delete_firewall_rule(firewall.id.as_str(), Some(vec![inbound_rule.clone()]), None)?;
-
-    let new_inbound_rule = FirewallInboundRule {
-        protocol: inbound_rule.protocol.clone(),
-        ports: inbound_rule.ports.clone(),
-        sources: FirewallRuleTarget {
-            addresses,
-            droplet_ids,
-            kubernetes_ids: kubernetes_cluster_ids,
-            load_balancer_uids: load_balancer_ids,
-            tags: inbound_rule.sources.tags.clone(),
-        },
+    let (inbound_rule, new_inbound_rule) = match inbound_rule_replacement {
+        Some((ir, nir)) => (Some(vec![ir.clone()]), Some(vec![nir])),
+        None => (None, None),
+    };
+    let (outbound_rule, new_outbound_rule) = match outbound_rule_replacement {
+        Some((or, nor)) => (Some(vec![or.clone()]), Some(vec![nor])),
+        None => (None, None),
     };
 
-    info!(
-        "Creating inbound rule on firewall {}\n{:#?}",
-        firewall.id, new_inbound_rule
-    );
-    fw_client.add_firewall_rule(firewall.id.as_str(), Some(vec![new_inbound_rule]), None)?;
+    if inbound_rule.is_some() {
+        info!(
+            "Deleting inbound rule on firewall {}\n{:#?}",
+            firewall.id, inbound_rule
+        );
+    }
+    if outbound_rule.is_some() {
+        info!(
+            "Deleting outbound rule on firewall {}\n{:#?}",
+            firewall.id, outbound_rule
+        );
+    }
+    fw_client.delete_firewall_rule(firewall.id.as_str(), inbound_rule, outbound_rule)?;
 
-    info!("Fetching updated firewall");
-    let updated_firewall = fw_client
-        .get_firewall(firewall.name.clone())
-        .map(|f| f.expect("Unable to find firewall after modifying!"))?;
-
-    Ok(updated_firewall)
-}
-
-fn run_firewall_outbound(
-    fw_client: Box<dyn DigitalOceanFirewallClient>,
-    firewall: &Firewall,
-    outbound_rule: &FirewallOutboundRule,
-    addresses: Option<Vec<String>>,
-    droplet_ids: Option<Vec<u32>>,
-    kubernetes_cluster_ids: Option<Vec<String>>,
-    load_balancer_ids: Option<Vec<String>>,
-) -> Result<Firewall, Error> {
-    info!(
-        "Deleting outbound rule on firewall {}\n{:#?}",
-        firewall.id, outbound_rule
-    );
-    fw_client.delete_firewall_rule(
-        firewall.id.as_str(),
-        None,
-        Some(vec![outbound_rule.clone()]),
-    )?;
-
-    let new_outbound_rule = FirewallOutboundRule {
-        protocol: outbound_rule.protocol.clone(),
-        ports: outbound_rule.ports.clone(),
-        destinations: FirewallRuleTarget {
-            addresses,
-            droplet_ids,
-            kubernetes_ids: kubernetes_cluster_ids,
-            load_balancer_uids: load_balancer_ids,
-            tags: outbound_rule.destinations.tags.clone(),
-        },
-    };
-
-    info!(
-        "Creating outbound rule on firewall {}\n{:#?}",
-        firewall.id, new_outbound_rule
-    );
-    fw_client.add_firewall_rule(firewall.id.as_str(), None, Some(vec![new_outbound_rule]))?;
+    if new_inbound_rule.is_some() {
+        info!(
+            "Creating inbound rule on firewall {}\n{:#?}",
+            firewall.id, new_inbound_rule
+        );
+    }
+    if new_outbound_rule.is_some() {
+        info!(
+            "Creating outbound rule on firewall {}\n{:#?}",
+            firewall.id, new_outbound_rule
+        );
+    }
+    fw_client.add_firewall_rule(firewall.id.as_str(), new_inbound_rule, new_outbound_rule)?;
 
     info!("Fetching updated firewall");
     let updated_firewall = fw_client
@@ -373,7 +368,7 @@ impl From<std::net::AddrParseError> for Error {
     }
 }
 
-impl std::fmt::Display for Error {
+impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{self:?}")
     }
@@ -382,6 +377,7 @@ impl std::fmt::Display for Error {
 #[cfg(test)]
 mod test {
     use std::net::{IpAddr, Ipv4Addr};
+    use std::rc::Rc;
 
     use crate::digitalocean::dns::{DigitalOceanDnsClient, Domain, DomainRecord};
     use crate::digitalocean::error::Error;
@@ -410,7 +406,7 @@ mod test {
         };
 
         let record = run_dns(
-            Box::new(client),
+            Rc::new(client),
             domain.clone(),
             record_name.clone(),
             rtype.clone(),
@@ -460,7 +456,7 @@ mod test {
         };
 
         let record = run_dns(
-            Box::new(client),
+            Rc::new(client),
             domain.clone(),
             record_name.clone(),
             rtype.clone(),
@@ -510,7 +506,7 @@ mod test {
         };
 
         let record = run_dns(
-            Box::new(client),
+            Rc::new(client),
             domain.clone(),
             record_name.clone(),
             rtype.clone(),
