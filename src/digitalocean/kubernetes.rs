@@ -38,7 +38,7 @@ struct KubernetesClusterResp {
     links: Links,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct KubernetesCluster {
     /// A unique ID that can be used to identify and reference a Kubernetes cluster.
@@ -86,7 +86,7 @@ pub struct KubernetesCluster {
     /// A boolean value indicating whether surge upgrade is enabled/disabled for the cluster. Surge
     /// upgrade makes cluster upgrades fast and reliable by bringing up new nodes before destroying
     /// the outdated nodes.
-    pub surge_upgrade: String,
+    pub surge_upgrade: bool,
     /// A boolean value indicating whether the control plane is run in a highly available
     /// configuration in the cluster. Highly available control planes incur less downtime. The
     /// property cannot be disabled.
@@ -95,7 +95,7 @@ pub struct KubernetesCluster {
     pub registry_enabled: bool,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct KubernetesClusterNodePool {
     /// The slug identifier for the type of Droplet used as workers in the node pool.
@@ -129,7 +129,7 @@ pub struct KubernetesClusterNodePool {
     pub nodes: Vec<KubernetesClusterNodePoolNode>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct KubernetesClusterNodePoolTaint {
     /// An arbitrary string. The key and value fields of the taint object form a key-value pair. For
@@ -145,7 +145,7 @@ pub struct KubernetesClusterNodePoolTaint {
     pub effect: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct KubernetesClusterNodePoolNode {
     /// A unique ID that can be used to identify and reference the node.
@@ -165,7 +165,7 @@ pub struct KubernetesClusterNodePoolNode {
     pub updated_at: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct KubernetesClusterNodePoolNodeState {
     /// A string indicating the current status of the node.
@@ -173,7 +173,7 @@ pub struct KubernetesClusterNodePoolNodeState {
     pub state: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct KubernetesClusterMaintenancePolicy {
     /// The start time in UTC of the maintenance window policy in 24-hour clock format / HH:MM
@@ -186,12 +186,333 @@ pub struct KubernetesClusterMaintenancePolicy {
     pub day: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct KubernetesClusterStatus {
     /// A string indicating the current status of the cluster.
     /// values: "running" "provisioning" "degraded" "error" "deleted" "upgrading" "deleting"
     pub state: String,
     /// An optional message providing additional information about the current cluster state.
-    pub message: String,
+    pub message: Option<String>,
+}
+
+#[cfg(test)]
+mod test {
+    use crate::digitalocean::kubernetes::{
+        KubernetesCluster, KubernetesClusterMaintenancePolicy, KubernetesClusterNodePool,
+        KubernetesClusterNodePoolNode, KubernetesClusterNodePoolNodeState,
+        KubernetesClusterNodePoolTaint, KubernetesClusterStatus,
+    };
+    use crate::digitalocean::DigitalOceanClient;
+    use std::collections::HashMap;
+
+    fn get_cluster_1_json() -> serde_json::Value {
+        json!({
+            "id": "1",
+            "name": "cluster1",
+            "region": "nyc1",
+            "version": "1.26.5",
+            "cluster_subnet": "10.0.0.0/24",
+            "service_subnet": "10.0.1.0/24",
+            "vpc_uuid": "123-456-789",
+            "ipv4": "10.0.0.1",
+            "endpoint": "http://cluster1.kube.digitalocean.com",
+            "tags": ["awesome"],
+            "node_pools": [{
+                "size": "small",
+                "id": "42",
+                "name": "nodes1",
+                "count": 10,
+                "tags": [],
+                "labels": {
+                    "foo": "bar",
+                },
+                "taints": [{
+                    "key": "key",
+                    "value": "value",
+                    "effect": "NoSchedule",
+                }],
+                "auto_scale": false,
+                "min_nodes": 0,
+                "max_nodes": 0,
+                "nodes": [{
+                    "id": "100",
+                    "name": "node1",
+                    "status": {
+                        "state": "running",
+                    },
+                    "droplet_id": "987-654-321",
+                    "created_at": "2024-01-01T04:00:00Z",
+                    "updated_at": "2024-01-01T04:00:00Z",
+                }]
+            }],
+            "maintenance_policy": {
+                "start_time": "15:00",
+                "duration": "1 hour",
+                "day": "monday",
+            },
+            "auto_upgrade": false,
+            "status": {
+                "state": "running",
+                "message": null,
+            },
+            "created_at": "2024-01-01T04:00:00Z",
+            "updated_at": "2024-01-01T04:00:00Z",
+            "surge_upgrade": false,
+            "ha": false,
+            "registry_enabled": false,
+        })
+    }
+
+    fn get_cluster_1_obj() -> KubernetesCluster {
+        KubernetesCluster {
+            id: "1".to_string(),
+            name: "cluster1".to_string(),
+            region: "nyc1".to_string(),
+            version: "1.26.5".to_string(),
+            cluster_subnet: "10.0.0.0/24".to_string(),
+            service_subnet: "10.0.1.0/24".to_string(),
+            vpc_uuid: "123-456-789".to_string(),
+            ipv4: Some("10.0.0.1".to_string()),
+            endpoint: "http://cluster1.kube.digitalocean.com".to_string(),
+            tags: vec!["awesome".to_string()],
+            node_pools: vec![KubernetesClusterNodePool {
+                size: "small".to_string(),
+                id: "42".to_string(),
+                name: "nodes1".to_string(),
+                count: 10,
+                tags: vec![],
+                labels: Some(HashMap::from([("foo".to_string(), "bar".to_string())])),
+                taints: vec![KubernetesClusterNodePoolTaint {
+                    key: "key".to_string(),
+                    value: "value".to_string(),
+                    effect: "NoSchedule".to_string(),
+                }],
+                auto_scale: false,
+                min_nodes: 0,
+                max_nodes: 0,
+                nodes: vec![KubernetesClusterNodePoolNode {
+                    id: "100".to_string(),
+                    name: "node1".to_string(),
+                    status: KubernetesClusterNodePoolNodeState {
+                        state: "running".to_string(),
+                    },
+                    droplet_id: "987-654-321".to_string(),
+                    created_at: "2024-01-01T04:00:00Z".to_string(),
+                    updated_at: "2024-01-01T04:00:00Z".to_string(),
+                }],
+            }],
+            maintenance_policy: Some(KubernetesClusterMaintenancePolicy {
+                start_time: "15:00".to_string(),
+                duration: "1 hour".to_string(),
+                day: "monday".to_string(),
+            }),
+            auto_upgrade: false,
+            status: KubernetesClusterStatus {
+                state: "running".to_string(),
+                message: None,
+            },
+            created_at: "2024-01-01T04:00:00Z".to_string(),
+            updated_at: "2024-01-01T04:00:00Z".to_string(),
+            surge_upgrade: false,
+            ha: false,
+            registry_enabled: false,
+        }
+    }
+
+    fn get_cluster_2_json() -> serde_json::Value {
+        json!({
+            "id": "2",
+            "name": "cluster2",
+            "region": "nyc2",
+            "version": "1.28.2",
+            "cluster_subnet": "10.1.0.0/24",
+            "service_subnet": "10.1.1.0/24",
+            "vpc_uuid": "123-456-789",
+            "ipv4": null,
+            "endpoint": "http://cluster2.kube.digitalocean.com",
+            "tags": ["amazing"],
+            "node_pools": [{
+                "size": "small",
+                "id": "48",
+                "name": "nodes2",
+                "count": 5,
+                "tags": ["what"],
+                "labels": {
+                    "baz": "snake",
+                },
+                "taints": [{
+                    "key": "key",
+                    "value": "value",
+                    "effect": "NoSchedule",
+                }],
+                "auto_scale": true,
+                "min_nodes": 5,
+                "max_nodes": 10,
+                "nodes": [{
+                    "id": "200",
+                    "name": "node2",
+                    "status": {
+                        "state": "running",
+                    },
+                    "droplet_id": "987-654-321",
+                    "created_at": "2024-02-01T04:00:00Z",
+                    "updated_at": "2024-02-01T04:00:00Z",
+                }]
+            }],
+            "maintenance_policy": {
+                "start_time": "10:00",
+                "duration": "2 hours",
+                "day": "tuesday",
+            },
+            "auto_upgrade": false,
+            "status": {
+                "state": "running",
+                "message": null,
+            },
+            "created_at": "2024-02-01T04:00:00Z",
+            "updated_at": "2024-02-01T04:00:00Z",
+            "surge_upgrade": false,
+            "ha": true,
+            "registry_enabled": false,
+        })
+    }
+
+    fn get_cluster_2_obj() -> KubernetesCluster {
+        KubernetesCluster {
+            id: "2".to_string(),
+            name: "cluster2".to_string(),
+            region: "nyc2".to_string(),
+            version: "1.28.2".to_string(),
+            cluster_subnet: "10.1.0.0/24".to_string(),
+            service_subnet: "10.1.1.0/24".to_string(),
+            vpc_uuid: "123-456-789".to_string(),
+            ipv4: None,
+            endpoint: "http://cluster2.kube.digitalocean.com".to_string(),
+            tags: vec!["amazing".to_string()],
+            node_pools: vec![KubernetesClusterNodePool {
+                size: "small".to_string(),
+                id: "48".to_string(),
+                name: "nodes2".to_string(),
+                count: 5,
+                tags: vec!["what".to_string()],
+                labels: Some(HashMap::from([("baz".to_string(), "snake".to_string())])),
+                taints: vec![KubernetesClusterNodePoolTaint {
+                    key: "key".to_string(),
+                    value: "value".to_string(),
+                    effect: "NoSchedule".to_string(),
+                }],
+                auto_scale: true,
+                min_nodes: 5,
+                max_nodes: 10,
+                nodes: vec![KubernetesClusterNodePoolNode {
+                    id: "200".to_string(),
+                    name: "node2".to_string(),
+                    status: KubernetesClusterNodePoolNodeState {
+                        state: "running".to_string(),
+                    },
+                    droplet_id: "987-654-321".to_string(),
+                    created_at: "2024-02-01T04:00:00Z".to_string(),
+                    updated_at: "2024-02-01T04:00:00Z".to_string(),
+                }],
+            }],
+            maintenance_policy: Some(KubernetesClusterMaintenancePolicy {
+                start_time: "10:00".to_string(),
+                duration: "2 hours".to_string(),
+                day: "tuesday".to_string(),
+            }),
+            auto_upgrade: false,
+            status: KubernetesClusterStatus {
+                state: "running".to_string(),
+                message: None,
+            },
+            created_at: "2024-02-01T04:00:00Z".to_string(),
+            updated_at: "2024-02-01T04:00:00Z".to_string(),
+            surge_upgrade: false,
+            ha: true,
+            registry_enabled: false,
+        }
+    }
+
+    #[test]
+    fn test_get_clusters() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/kubernetes/clusters")
+            .match_header("Authorization", "Bearer foo")
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "kubernetes_clusters": [
+                        get_cluster_1_json(),
+                        get_cluster_2_json(),
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .kubernetes
+            .get_kubernetes_clusters();
+        assert_eq!(Ok(vec![get_cluster_1_obj(), get_cluster_2_obj()]), resp);
+        _m.assert();
+    }
+
+    #[test]
+    fn test_get_clusters_paginated() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/kubernetes/clusters")
+            .match_header("Authorization", "Bearer foo")
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "kubernetes_clusters": [
+                        get_cluster_1_json(),
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {
+                        "pages": {
+                            "next": format!("{}/v2/kubernetes/clusters?page=2", server.url())
+                        }
+                    }
+                }))
+                .unwrap(),
+            )
+            .create();
+        let _m_page2 = server
+            .mock("GET", "/v2/kubernetes/clusters?page=2")
+            .match_header("Authorization", "Bearer foo")
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "kubernetes_clusters": [
+                        get_cluster_2_json(),
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .kubernetes
+            .get_kubernetes_clusters();
+        assert_eq!(Ok(vec![get_cluster_1_obj(), get_cluster_2_obj()]), resp);
+        _m.assert();
+        _m_page2.assert();
+    }
 }
