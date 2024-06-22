@@ -1,6 +1,5 @@
 use crate::digitalocean::api::{DigitalOceanApiClient, Links, Meta};
 use crate::digitalocean::error::Error;
-use reqwest::Method;
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -21,26 +20,11 @@ impl DigitalOceanKubernetesClientImpl {
 impl DigitalOceanKubernetesClient for DigitalOceanKubernetesClientImpl {
     /// Get info on all kubernetes clusters.
     fn get_kubernetes_clusters(&self) -> Result<Vec<KubernetesCluster>, Error> {
-        let mut url = self.api.get_url("/v2/kubernetes/clusters");
-        let mut exit = false;
-        let mut clusters: Vec<KubernetesCluster> = Vec::new();
-
-        while !exit {
-            let resp = self
-                .api
-                .get_request_builder(Method::GET, url.clone())
-                .send()?
-                .json::<KubernetesClusterResp>()?;
-
-            clusters.extend(resp.kubernetes_clusters.into_iter());
-            if resp.links.pages.is_some() && resp.links.pages.clone().unwrap().next.is_some() {
-                url = resp.links.pages.unwrap().next.unwrap();
-            } else {
-                exit = true;
-            }
-        }
-
-        Ok(clusters)
+        self.api.get_all_objects(
+            self.api.get_url("/v2/kubernetes/clusters"),
+            |r: KubernetesClusterResp| r.kubernetes_clusters,
+            |r: &KubernetesClusterResp| r.links.clone(),
+        )
     }
 }
 

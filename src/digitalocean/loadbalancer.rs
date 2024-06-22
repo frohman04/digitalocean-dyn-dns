@@ -1,6 +1,5 @@
 use crate::digitalocean::api::{DigitalOceanApiClient, Links, Meta};
 use crate::digitalocean::error::Error;
-use reqwest::Method;
 use serde::Deserialize;
 
 pub trait DigitalOceanLoadbalancerClient {
@@ -20,26 +19,11 @@ impl DigitalOceanLoadbalancerClientImpl {
 impl DigitalOceanLoadbalancerClient for DigitalOceanLoadbalancerClientImpl {
     /// Get info on all load balancers.
     fn get_load_balancers(&self) -> Result<Vec<Loadbalancer>, Error> {
-        let mut url = self.api.get_url("/v2/load_balancers");
-        let mut exit = false;
-        let mut load_balancers: Vec<Loadbalancer> = Vec::new();
-
-        while !exit {
-            let resp = self
-                .api
-                .get_request_builder(Method::GET, url.clone())
-                .send()?
-                .json::<LoadbalancersResp>()?;
-
-            load_balancers.extend(resp.load_balancers.into_iter());
-            if resp.links.pages.is_some() && resp.links.pages.clone().unwrap().next.is_some() {
-                url = resp.links.pages.unwrap().next.unwrap();
-            } else {
-                exit = true;
-            }
-        }
-
-        Ok(load_balancers)
+        self.api.get_all_objects(
+            self.api.get_url("/v2/load_balancers"),
+            |r: LoadbalancersResp| r.load_balancers,
+            |r: &LoadbalancersResp| r.links.clone(),
+        )
     }
 }
 

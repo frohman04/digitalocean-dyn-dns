@@ -1,6 +1,5 @@
 use crate::digitalocean::api::{DigitalOceanApiClient, Links, Meta};
 use crate::digitalocean::error::Error;
-use reqwest::Method;
 use serde::Deserialize;
 
 pub trait DigitalOceanDropletClient {
@@ -20,26 +19,11 @@ impl DigitalOceanDropletClientImpl {
 impl DigitalOceanDropletClient for DigitalOceanDropletClientImpl {
     /// Get info on all droplets.
     fn get_droplets(&self) -> Result<Vec<Droplet>, Error> {
-        let mut url = self.api.get_url("/v2/droplets");
-        let mut exit = false;
-        let mut droplets: Vec<Droplet> = Vec::new();
-
-        while !exit {
-            let resp = self
-                .api
-                .get_request_builder(Method::GET, url.clone())
-                .send()?
-                .json::<DropletsResp>()?;
-
-            droplets.extend(resp.droplets.into_iter());
-            if resp.links.pages.is_some() && resp.links.pages.clone().unwrap().next.is_some() {
-                url = resp.links.pages.unwrap().next.unwrap();
-            } else {
-                exit = true;
-            }
-        }
-
-        Ok(droplets)
+        self.api.get_all_objects(
+            self.api.get_url("/v2/droplets"),
+            |r: DropletsResp| r.droplets,
+            |r: &DropletsResp| r.links.clone(),
+        )
     }
 }
 
