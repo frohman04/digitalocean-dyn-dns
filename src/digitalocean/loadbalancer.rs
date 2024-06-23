@@ -37,7 +37,7 @@ struct LoadbalancersResp {
     links: Links,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct Loadbalancer {
     /// A unique ID that can be used to identify and reference a load balancer.
@@ -68,11 +68,11 @@ pub struct Loadbalancer {
     /// You can resize load balancers after creation up to once per hour. You cannot resize a load
     /// balancer within the first hour of its creation.
     #[deprecated]
-    pub size: String,
+    pub size: Option<String>,
     /// This field has been deprecated. You can no longer specify an algorithm for load balancers.
     /// values: "round_robin" "least_connections"
     #[deprecated]
-    pub algorithm: String,
+    pub algorithm: Option<String>,
     /// A status string indicating the current state of the load balancer. This can be new, active,
     /// or errored.
     pub status: String,
@@ -113,7 +113,7 @@ pub struct Loadbalancer {
     pub tag: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct LoadbalancerForwardingRule {
     /// The protocol used for traffic to the load balancer. The possible values are: http, https,
@@ -135,10 +135,10 @@ pub struct LoadbalancerForwardingRule {
     pub certificate_id: Option<String>,
     /// A boolean value indicating whether SSL encrypted traffic will be passed through to the
     /// backend Droplets.
-    pub tls_passthrough: Option<String>,
+    pub tls_passthrough: bool,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct LoadbalancerHealthCheck {
     /// The protocol used for health checks sent to the backend Droplets. The possible values are
@@ -162,7 +162,7 @@ pub struct LoadbalancerHealthCheck {
     pub healthy_threshold: u8,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct LoadbalancerStickySessions {
     /// An attribute indicating how and if requests from a client will be persistently served by the
@@ -171,13 +171,13 @@ pub struct LoadbalancerStickySessions {
     pub typ: String,
     /// The name of the cookie sent to the client. This attribute is only returned when using
     /// cookies for the sticky sessions type.
-    pub cookie_name: String,
+    pub cookie_name: Option<String>,
     /// The number of seconds until the cookie set by the load balancer expires. This attribute is
     /// only returned when using cookies for the sticky sessions type.
-    pub cookie_ttl_seconds: String,
+    pub cookie_ttl_seconds: Option<u32>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct LoadbalancerFirewall {
     /// the rules for denying traffic to the load balancer (in the form 'ip:1.2.3.4' or
@@ -188,7 +188,7 @@ pub struct LoadbalancerFirewall {
     pub allow: Vec<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct LoadbalancerRegion {
     /// The display name of the region. This will be a full name that is used in the control panel
@@ -203,4 +203,323 @@ pub struct LoadbalancerRegion {
     /// This attribute is set to an array which contains the identifying slugs for the sizes
     /// available in this region.
     pub sizes: Vec<String>,
+}
+
+#[cfg(test)]
+mod test {
+    use crate::digitalocean::loadbalancer::{
+        Loadbalancer, LoadbalancerFirewall, LoadbalancerForwardingRule, LoadbalancerHealthCheck,
+        LoadbalancerRegion, LoadbalancerStickySessions,
+    };
+    use crate::digitalocean::DigitalOceanClient;
+
+    fn get_load_balancer_1_json() -> serde_json::Value {
+        json!({
+            "id": "1",
+            "name": "lb1",
+            "project_id": "123456",
+            "ip": "1.2.3.4",
+            "size_unit": 5,
+            "size": null,
+            "algorithm": null,
+            "status": "active",
+            "created_at": "2024-01-01T12:00:00Z",
+            "forwarding_rules": [{
+                "entry_protocol": "http",
+                "entry_port": 80,
+                "target_protocol": "http",
+                "target_port": 80,
+                "certificate_id": null,
+                "tls_passthrough": false,
+            }],
+            "health_check": {
+                "protocol": "http",
+                "port": 80,
+                "path": "/heartbeat",
+                "check_interval_seconds": 15,
+                "response_timeout_seconds": 5,
+                "unhealthy_threshold": 2,
+                "healthy_threshold": 2,
+            },
+            "sticky_sessions": {
+                "type": "cookies",
+                "cookie_name": "do_sticky",
+                "cookie_ttl_seconds": 30,
+            },
+            "redirect_http_to_https": false,
+            "enable_proxy_protocol": false,
+            "enable_backend_keepalive": false,
+            "http_idle_timeout_seconds": 5,
+            "vpc_uuid": "123-456-789",
+            "disable_lets_encrypt_dns_records": true,
+            "firewall": {
+                "deny": [],
+                "allow": ["cidr:0.0.0.0/0"],
+            },
+            "region": {
+                "name": "NYC 1",
+                "slug": "nyc1",
+                "features": ["loadbalancer"],
+                "available": true,
+                "sizes": ["small"],
+            },
+            "droplet_ids": [123, 456, 789],
+            "tag": "lb1",
+        })
+    }
+
+    fn get_load_balancer_1_obj() -> Loadbalancer {
+        #[allow(deprecated)]
+        Loadbalancer {
+            id: "1".to_string(),
+            name: "lb1".to_string(),
+            project_id: "123456".to_string(),
+            ip: "1.2.3.4".to_string(),
+            size_unit: 5,
+            size: None,
+            algorithm: None,
+            status: "active".to_string(),
+            created_at: "2024-01-01T12:00:00Z".to_string(),
+            forwarding_rules: vec![LoadbalancerForwardingRule {
+                entry_protocol: "http".to_string(),
+                entry_port: 80,
+                target_protocol: "http".to_string(),
+                target_port: 80,
+                certificate_id: None,
+                tls_passthrough: false,
+            }],
+            health_check: LoadbalancerHealthCheck {
+                protocol: "http".to_string(),
+                port: 80,
+                path: "/heartbeat".to_string(),
+                check_interval_seconds: 15,
+                response_timeout_seconds: 5,
+                unhealthy_threshold: 2,
+                healthy_threshold: 2,
+            },
+            sticky_sessions: LoadbalancerStickySessions {
+                typ: "cookies".to_string(),
+                cookie_name: Some("do_sticky".to_string()),
+                cookie_ttl_seconds: Some(30),
+            },
+            redirect_http_to_https: false,
+            enable_proxy_protocol: false,
+            enable_backend_keepalive: false,
+            http_idle_timeout_seconds: 5,
+            vpc_uuid: "123-456-789".to_string(),
+            disable_lets_encrypt_dns_records: true,
+            firewall: LoadbalancerFirewall {
+                deny: vec![],
+                allow: vec!["cidr:0.0.0.0/0".to_string()],
+            },
+            region: LoadbalancerRegion {
+                name: "NYC 1".to_string(),
+                slug: "nyc1".to_string(),
+                features: vec!["loadbalancer".to_string()],
+                available: true,
+                sizes: vec!["small".to_string()],
+            },
+            droplet_ids: vec![123, 456, 789],
+            tag: "lb1".to_string(),
+        }
+    }
+
+    fn get_load_balancer_2_json() -> serde_json::Value {
+        json!({
+            "id": "2",
+            "name": "lb2",
+            "project_id": "987654",
+            "ip": "10.20.30.40",
+            "size_unit": 10,
+            "size": null,
+            "algorithm": null,
+            "status": "active",
+            "created_at": "2024-02-01T12:00:00Z",
+            "forwarding_rules": [{
+                "entry_protocol": "https",
+                "entry_port": 443,
+                "target_protocol": "https",
+                "target_port": 443,
+                "certificate_id": null,
+                "tls_passthrough": true,
+            }],
+            "health_check": {
+                "protocol": "https",
+                "port": 443,
+                "path": "/health_status",
+                "check_interval_seconds": 15,
+                "response_timeout_seconds": 5,
+                "unhealthy_threshold": 2,
+                "healthy_threshold": 2,
+            },
+            "sticky_sessions": {
+                "type": "none",
+                "cookie_name": null,
+                "cookie_ttl_seconds": null,
+            },
+            "redirect_http_to_https": false,
+            "enable_proxy_protocol": false,
+            "enable_backend_keepalive": false,
+            "http_idle_timeout_seconds": 5,
+            "vpc_uuid": "123-456-789",
+            "disable_lets_encrypt_dns_records": true,
+            "firewall": {
+                "deny": [],
+                "allow": ["cidr:0.0.0.0/0"],
+            },
+            "region": {
+                "name": "NYC 1",
+                "slug": "nyc1",
+                "features": ["loadbalancer"],
+                "available": true,
+                "sizes": ["small"],
+            },
+            "droplet_ids": [987, 654, 321],
+            "tag": "lb2",
+        })
+    }
+
+    fn get_load_balancer_2_obj() -> Loadbalancer {
+        #[allow(deprecated)]
+        Loadbalancer {
+            id: "2".to_string(),
+            name: "lb2".to_string(),
+            project_id: "987654".to_string(),
+            ip: "10.20.30.40".to_string(),
+            size_unit: 10,
+            size: None,
+            algorithm: None,
+            status: "active".to_string(),
+            created_at: "2024-02-01T12:00:00Z".to_string(),
+            forwarding_rules: vec![LoadbalancerForwardingRule {
+                entry_protocol: "https".to_string(),
+                entry_port: 443,
+                target_protocol: "https".to_string(),
+                target_port: 443,
+                certificate_id: None,
+                tls_passthrough: true,
+            }],
+            health_check: LoadbalancerHealthCheck {
+                protocol: "https".to_string(),
+                port: 443,
+                path: "/health_status".to_string(),
+                check_interval_seconds: 15,
+                response_timeout_seconds: 5,
+                unhealthy_threshold: 2,
+                healthy_threshold: 2,
+            },
+            sticky_sessions: LoadbalancerStickySessions {
+                typ: "none".to_string(),
+                cookie_name: None,
+                cookie_ttl_seconds: None,
+            },
+            redirect_http_to_https: false,
+            enable_proxy_protocol: false,
+            enable_backend_keepalive: false,
+            http_idle_timeout_seconds: 5,
+            vpc_uuid: "123-456-789".to_string(),
+            disable_lets_encrypt_dns_records: true,
+            firewall: LoadbalancerFirewall {
+                deny: vec![],
+                allow: vec!["cidr:0.0.0.0/0".to_string()],
+            },
+            region: LoadbalancerRegion {
+                name: "NYC 1".to_string(),
+                slug: "nyc1".to_string(),
+                features: vec!["loadbalancer".to_string()],
+                available: true,
+                sizes: vec!["small".to_string()],
+            },
+            droplet_ids: vec![987, 654, 321],
+            tag: "lb2".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_get_lbs() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/load_balancers")
+            .match_header("Authorization", "Bearer foo")
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "load_balancers": [
+                        get_load_balancer_1_json(),
+                        get_load_balancer_2_json(),
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .load_balancer
+            .get_load_balancers();
+        assert_eq!(
+            Ok(vec![get_load_balancer_1_obj(), get_load_balancer_2_obj()]),
+            resp
+        );
+        _m.assert();
+    }
+
+    #[test]
+    fn test_get_lbs_paginated() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/load_balancers")
+            .match_header("Authorization", "Bearer foo")
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "load_balancers": [
+                        get_load_balancer_1_json(),
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {
+                        "pages": {
+                            "next": format!("{}/v2/load_balancers?page=2", server.url())
+                        }
+                    }
+                }))
+                .unwrap(),
+            )
+            .create();
+        let _m_page2 = server
+            .mock("GET", "/v2/load_balancers?page=2")
+            .match_header("Authorization", "Bearer foo")
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "load_balancers": [
+                        get_load_balancer_2_json(),
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .load_balancer
+            .get_load_balancers();
+        assert_eq!(
+            Ok(vec![get_load_balancer_1_obj(), get_load_balancer_2_obj()]),
+            resp
+        );
+        _m.assert();
+        _m_page2.assert();
+    }
 }
