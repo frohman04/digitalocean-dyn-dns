@@ -138,7 +138,7 @@ struct FirewallsResp {
     links: Links,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct Firewall {
     /// A unique ID that can be used to identify and reference a firewall.
@@ -165,7 +165,7 @@ pub struct Firewall {
     pub outbound_rules: Option<Vec<FirewallOutboundRule>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct FirewallPendingChange {
     pub droplet_id: u32,
@@ -173,7 +173,7 @@ pub struct FirewallPendingChange {
     pub status: String,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct FirewallInboundRule {
     /// The type of traffic to be allowed. This may be one of tcp, udp, or icmp.
@@ -186,7 +186,7 @@ pub struct FirewallInboundRule {
     pub sources: FirewallRuleTarget,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct FirewallOutboundRule {
     /// The type of traffic to be allowed. This may be one of tcp, udp, or icmp.
@@ -199,7 +199,7 @@ pub struct FirewallOutboundRule {
     pub destinations: FirewallRuleTarget,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, Eq, PartialEq)]
 #[allow(dead_code)]
 pub struct FirewallRuleTarget {
     /// An array of strings containing the IPv4 addresses, IPv6 addresses, IPv4 CIDRs, and/or IPv6
@@ -222,10 +222,294 @@ pub struct FirewallRuleTarget {
     pub tags: Option<Vec<String>>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Eq, PartialEq)]
 pub struct FirewallRuleBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inbound_rules: Option<Vec<FirewallInboundRule>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub outbound_rules: Option<Vec<FirewallOutboundRule>>,
+}
+
+#[cfg(test)]
+mod test {
+    use mockito;
+    use reqwest::StatusCode;
+
+    use crate::digitalocean::firewall::{Firewall, FirewallInboundRule, FirewallRuleTarget};
+    use crate::digitalocean::DigitalOceanClient;
+
+    fn get_firewall_1_json() -> serde_json::Value {
+        json!({
+            "id": "fw1",
+            "status": "succeeded",
+            "created_at": "2024-01-01T00:00:00Z",
+            "pending_changes": [{
+                "droplet_id": 0,
+                "removing": false,
+                "status": "",
+            }],
+            "name": "FW 1",
+            "droplet_ids": [5],
+            "tags": ["foo"],
+            "inbound_rules": [{
+                "protocol": "tcp",
+                "ports": "443",
+                "sources": {
+                    "addresses": ["1.1.1.1"],
+                    "droplet_ids": null,
+                    "load_balancer_uuids": null,
+                    "kubernetes_ids": null,
+                    "tags": null,
+                },
+            }],
+            "outbound_rules": null,
+        })
+    }
+
+    fn get_firewall_2_obj() -> Firewall {
+        Firewall {
+            id: "fw2".to_string(),
+            status: "succeeded".to_string(),
+            created_at: "2024-02-01T00:00:00Z".to_string(),
+            pending_changes: vec![],
+            name: "FW 2".to_string(),
+            droplet_ids: Some(vec![42]),
+            tags: Some(vec!["foo".to_string()]),
+            inbound_rules: Some(vec![FirewallInboundRule {
+                protocol: "tcp".to_string(),
+                ports: "80".to_string(),
+                sources: FirewallRuleTarget {
+                    addresses: Some(vec!["8.8.8.8".to_string()]),
+                    droplet_ids: None,
+                    load_balancer_uids: None,
+                    kubernetes_ids: None,
+                    tags: None,
+                },
+            }]),
+            outbound_rules: None,
+        }
+    }
+
+    fn get_firewall_2_json() -> serde_json::Value {
+        json!({
+            "id": "fw2",
+            "status": "succeeded",
+            "created_at": "2024-02-01T00:00:00Z",
+            "pending_changes": [],
+            "name": "FW 2",
+            "droplet_ids": [42],
+            "tags": ["foo"],
+            "inbound_rules": [{
+                "protocol": "tcp",
+                "ports": "80",
+                "sources": {
+                    "addresses": ["8.8.8.8"],
+                    "droplet_ids": null,
+                    "load_balancer_uuids": null,
+                    "kubernetes_ids": null,
+                    "tags": null,
+                },
+            }],
+            "outbound_rules": null,
+        })
+    }
+
+    #[test]
+    fn test_get_firewall() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/firewalls")
+            .match_header("Authorization", "Bearer foo")
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "firewalls": [
+                        get_firewall_1_json(),
+                        get_firewall_2_json(),
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .firewall
+            .get_firewall("FW 2".to_string());
+        assert_eq!(Ok(Some(get_firewall_2_obj())), resp);
+        _m.assert();
+    }
+
+    #[test]
+    fn test_get_firewall_paginated() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/firewalls")
+            .match_header("Authorization", "Bearer foo")
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "firewalls": [
+                        get_firewall_1_json(),
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {
+                        "pages": {
+                            "next": format!("{}/v2/firewalls?page=2", server.url())
+                        }
+                    }
+                }))
+                .unwrap(),
+            )
+            .create();
+        let _m_page2 = server
+            .mock("GET", "/v2/firewalls?page=2")
+            .match_header("Authorization", "Bearer foo")
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "firewalls": [
+                        get_firewall_2_json(),
+                    ],
+                    "meta": {
+                        "total": 2
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .firewall
+            .get_firewall("FW 2".to_string());
+        assert_eq!(Ok(Some(get_firewall_2_obj())), resp);
+        _m.assert();
+        _m_page2.assert();
+    }
+
+    #[test]
+    fn test_get_firewall_missing() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/v2/firewalls")
+            .match_header("Authorization", "Bearer foo")
+            .with_status(200)
+            .with_header("Content-Type", "application/json")
+            .with_body(
+                serde_json::to_string(&json!({
+                    "firewalls": [],
+                    "meta": {
+                        "total": 0
+                    },
+                    "links": {}
+                }))
+                .unwrap(),
+            )
+            .create();
+
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .firewall
+            .get_firewall("FW 2".to_string());
+        assert_eq!(Ok(None), resp);
+        _m.assert();
+    }
+
+    #[test]
+    fn test_delete_firewall() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("DELETE", "/v2/firewalls/fw2/rules")
+            .match_header("Authorization", "Bearer foo")
+            .match_header("Content-Type", "application/json")
+            .match_body(mockito::Matcher::Json(json!({
+                "inbound_rules": [{
+                    "protocol": "tcp",
+                    "ports": "443",
+                    "sources": {
+                        "addresses": ["1.1.1.1"],
+                        "droplet_ids": [12345],
+                        "load_balancer_uids": ["123-456-789"],
+                        "kubernetes_ids": ["98765"],
+                        "tags": ["foo"],
+                    },
+                }],
+            })))
+            .with_status(StatusCode::NO_CONTENT.as_u16() as usize)
+            .create();
+
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .firewall
+            .delete_firewall_rule(
+                &"fw2",
+                Some(vec![FirewallInboundRule {
+                    protocol: "tcp".to_string(),
+                    ports: "443".to_string(),
+                    sources: FirewallRuleTarget {
+                        addresses: Some(vec!["1.1.1.1".to_string()]),
+                        droplet_ids: Some(vec![12345]),
+                        load_balancer_uids: Some(vec!["123-456-789".to_string()]),
+                        kubernetes_ids: Some(vec!["98765".to_string()]),
+                        tags: Some(vec!["foo".to_string()]),
+                    },
+                }]),
+                None,
+                &false,
+            );
+        assert_eq!(Ok(()), resp);
+        _m.assert();
+    }
+
+    #[test]
+    fn test_create_firewall() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("POST", "/v2/firewalls/fw2/rules")
+            .match_header("Authorization", "Bearer foo")
+            .match_header("Content-Type", "application/json")
+            .match_body(mockito::Matcher::Json(json!({
+                "inbound_rules": [{
+                    "protocol": "tcp",
+                    "ports": "443",
+                    "sources": {
+                        "addresses": ["1.1.1.1"],
+                        "droplet_ids": [12345],
+                        "load_balancer_uids": ["123-456-789"],
+                        "kubernetes_ids": ["98765"],
+                        "tags": ["foo"],
+                    },
+                }],
+            })))
+            .with_status(StatusCode::NO_CONTENT.as_u16() as usize)
+            .create();
+
+        let resp = DigitalOceanClient::new_for_test("foo".to_string(), server.url())
+            .firewall
+            .add_firewall_rule(
+                &"fw2",
+                Some(vec![FirewallInboundRule {
+                    protocol: "tcp".to_string(),
+                    ports: "443".to_string(),
+                    sources: FirewallRuleTarget {
+                        addresses: Some(vec!["1.1.1.1".to_string()]),
+                        droplet_ids: Some(vec![12345]),
+                        load_balancer_uids: Some(vec!["123-456-789".to_string()]),
+                        kubernetes_ids: Some(vec!["98765".to_string()]),
+                        tags: Some(vec!["foo".to_string()]),
+                    },
+                }]),
+                None,
+                &false,
+            );
+        assert_eq!(Ok(()), resp);
+        _m.assert();
+    }
 }
