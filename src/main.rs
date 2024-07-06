@@ -174,7 +174,10 @@ fn build_firewall_args(
                     Some(x) => x.clone(),
                     None => Vec::new(),
                 };
-                all_addresses.push(ip.to_string());
+                let ip_str = ip.to_string();
+                if !all_addresses.contains(&ip_str) {
+                    all_addresses.push(ip.to_string());
+                }
                 all_addresses
             });
 
@@ -1056,6 +1059,98 @@ mod fw_test {
                             droplet_ids,
                             load_balancer_uids: lb_ids,
                             kubernetes_ids: kube_cluster_ids,
+                            tags: curr_inbound_rule.sources.tags,
+                        },
+                    },
+                    actual_new_inbound_rule
+                );
+            }
+            x => panic!(
+                "Failed to get correct return values from build_firewall_args (got {:?}",
+                x
+            ),
+        };
+    }
+
+    #[test]
+    fn test_translate_args_no_dupe_addresses() {
+        let fw_id = "foo".to_string();
+        let fw_name = "Foo".to_string();
+        let fw_addrs = Some(vec!["8.8.8.8".to_string()]);
+        let fw_tags = Some(vec!["bar".to_string()]);
+        let host_addr = Ipv4Addr::new(8, 8, 8, 8);
+        let expected_addrs = vec![host_addr.to_string()];
+        let curr_inbound_rule = FirewallInboundRule {
+            protocol: "http".to_string(),
+            ports: "80".to_string(),
+            sources: FirewallRuleTarget {
+                addresses: fw_addrs.clone(),
+                droplet_ids: None,
+                load_balancer_uids: None,
+                kubernetes_ids: None,
+                tags: fw_tags.clone(),
+            },
+        };
+        let curr_outbound_rule = None;
+        let firewall = Firewall {
+            id: fw_id.clone(),
+            status: "succeeded".to_string(),
+            created_at: "2024-01-01T00:00Z".to_string(),
+            pending_changes: vec![],
+            name: fw_name.clone(),
+            droplet_ids: None,
+            tags: None,
+            inbound_rules: Some(vec![curr_inbound_rule.clone()]),
+            outbound_rules: curr_outbound_rule,
+        };
+
+        let fw_client = TestFwClientImpl {
+            expected_get_firewall_name: Some(fw_name.clone()),
+            firewall: Some(firewall.clone()),
+            expected_delete_firewall_id: None,
+            expected_delete_inbound_rules: None,
+            expected_delete_outbound_rules: None,
+            delete_rule_is_ok: false,
+            expected_add_firewall_id: None,
+            expected_add_inbound_rules: None,
+            expected_add_outbound_rules: None,
+            add_rule_is_ok: false,
+        };
+        let droplet_client = TestDropletClientImpl { droplets: vec![] };
+        let kubernetes_client = TestKubeClientImpl { clusters: vec![] };
+        let load_balancer_client = TestLbClientImpl {
+            loadbalancers: vec![],
+        };
+
+        match build_firewall_args(
+            Rc::new(fw_client),
+            Rc::new(droplet_client),
+            Rc::new(kubernetes_client),
+            Rc::new(load_balancer_client),
+            fw_name,
+            Direction::Inbound,
+            "80".to_string(),
+            "http".to_string(),
+            Some(vec!["8.8.8.8".to_string()]),
+            None,
+            None,
+            None,
+            IpAddr::V4(host_addr.clone()),
+        )
+        .expect("Unexpected failure in build_firewall_args")
+        {
+            (actual_fw, Some((actual_curr_inbound_rule, actual_new_inbound_rule)), None) => {
+                assert_eq!(firewall, actual_fw);
+                assert_eq!(curr_inbound_rule, actual_curr_inbound_rule);
+                assert_eq!(
+                    FirewallInboundRule {
+                        protocol: curr_inbound_rule.protocol,
+                        ports: curr_inbound_rule.ports,
+                        sources: FirewallRuleTarget {
+                            addresses: Some(expected_addrs),
+                            droplet_ids: None,
+                            load_balancer_uids: None,
+                            kubernetes_ids: None,
                             tags: curr_inbound_rule.sources.tags,
                         },
                     },
