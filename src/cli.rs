@@ -1,6 +1,6 @@
 use std::net::IpAddr;
 
-use clap::{crate_name, crate_version};
+use clap::{crate_name, crate_version, ArgMatches, Id};
 use tracing::info;
 
 use crate::ip_retriever;
@@ -16,6 +16,7 @@ pub struct Args {
 #[derive(Debug)]
 pub enum SubcmdArgs {
     Dns(DnsArgs),
+    Firewall(FirewallArgs),
 }
 
 #[derive(Debug)]
@@ -24,6 +25,24 @@ pub struct DnsArgs {
     pub domain: String,
     pub rtype: String,
     pub ttl: u16,
+}
+
+#[derive(Debug)]
+pub struct FirewallArgs {
+    pub name: String,
+    pub direction: Direction,
+    pub port: String,
+    pub protocol: String,
+    pub addresses: Option<Vec<String>>,
+    pub droplets: Option<Vec<String>>,
+    pub kubernetes_clusters: Option<Vec<String>>,
+    pub load_balancers: Option<Vec<String>>,
+}
+
+#[derive(Debug)]
+pub enum Direction {
+    Inbound,
+    Outbound,
 }
 
 impl Args {
@@ -94,6 +113,74 @@ impl Args {
                             .help("The TTL for the new DNS record"),
                     ),
             )
+            .subcommand(
+                clap::Command::new("firewall")
+                    .arg(
+                        clap::Arg::new("NAME")
+                            .required(true)
+                            .num_args(1)
+                            .help("The name of the firewall to update"),
+                    )
+                    .arg(
+                        clap::Arg::new("PORT")
+                            .required(true)
+                            .num_args(1)
+                            .help("The port or port range of the firewall rule to update"),
+                    )
+                    .arg(
+                        clap::Arg::new("PROTOCOL")
+                            .required(true)
+                            .num_args(1)
+                            .value_parser(["tcp", "udp", "icmp"])
+                            .help("The protocol of the firewall rule to update"),
+                    )
+                    .arg(
+                        clap::Arg::new("inbound")
+                            .long("inbound")
+                            .num_args(0)
+                            .help("Update the inbound rule for the specified port"),
+                    )
+                    .arg(
+                        clap::Arg::new("outbound")
+                            .long("outbound")
+                            .num_args(0)
+                            .help("Update the outbound rule for the specified port"),
+                    )
+                    .group(
+                        clap::ArgGroup::new("direction")
+                            .args(["inbound", "outbound"])
+                            .required(true),
+                    )
+                    .arg(
+                        clap::Arg::new("addresses")
+                            .long("addresses")
+                            .num_args(1)
+                            .help(
+                                "List of IPv4 addresses, IPv6 addresses, IPv4 CIDRs, and/or \
+                                IPv6 CIDRs to allow with the rule, separated by commas",
+                            ),
+                    )
+                    .arg(
+                        clap::Arg::new("droplets")
+                            .long("droplets")
+                            .num_args(1)
+                            .help(
+                                "List of droplet names to allow with the rule, separated by commas",
+                            ),
+                    )
+                    .arg(
+                        clap::Arg::new("kubernetes-clusters")
+                            .long("kubernetes-clusters")
+                            .num_args(1)
+                            .help("List of Kubernetes cluster names to allow with the rule, separated by commas")
+                    )
+                    .arg(
+                        clap::Arg::new("load-balancers")
+                            .long("load-balancers")
+                            .num_args(1)
+                            .help("List of load balancer names to allow with the rule, separated by commas")
+                    ),
+            )
             .subcommand_required(true)
             .get_matches();
 
@@ -128,6 +215,20 @@ impl Args {
                         .expect("Must provide integer for ttl"),
                 })
             }
+            Some(("firewall", sub_match)) => SubcmdArgs::Firewall(FirewallArgs {
+                name: sub_match.get_one::<String>("NAME").unwrap().clone(),
+                direction: match sub_match.get_one::<Id>("direction").unwrap().as_str() {
+                    "inbound" => Direction::Inbound,
+                    "outbound" => Direction::Outbound,
+                    _ => panic!("No direction specified"),
+                },
+                port: sub_match.get_one::<String>("PORT").unwrap().clone(),
+                protocol: sub_match.get_one::<String>("PROTOCOL").unwrap().clone(),
+                addresses: parse_csv(sub_match, "addresses"),
+                droplets: parse_csv(sub_match, "droplets"),
+                kubernetes_clusters: parse_csv(sub_match, "kubernetes-clusters"),
+                load_balancers: parse_csv(sub_match, "load-balancers"),
+            }),
             // these situations should be impossible, but Rust can't tell since the subcommand
             // matches are stringly-typed and it can't tell that we require a subcommand
             Some((cmd, _)) => panic!("Unknown subcommand detected: {}", cmd),
@@ -141,4 +242,10 @@ impl Args {
             subcmd_args,
         }
     }
+}
+
+fn parse_csv(matches: &ArgMatches, arg_name: &str) -> Option<Vec<String>> {
+    matches
+        .get_one::<String>(arg_name)
+        .map(|raw| raw.split(',').map(|x| x.to_string()).collect())
 }
