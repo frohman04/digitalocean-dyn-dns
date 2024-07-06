@@ -650,7 +650,6 @@ mod dns_test {
 
 #[cfg(test)]
 mod fw_test {
-    use crate::build_firewall_args;
     use crate::cli::Direction;
     use crate::digitalocean::droplet::{
         DigitalOceanDropletClient, Droplet, DropletImage, DropletNetworks, DropletRegion,
@@ -668,6 +667,8 @@ mod fw_test {
         DigitalOceanLoadbalancerClient, Loadbalancer, LoadbalancerFirewall,
         LoadbalancerHealthCheck, LoadbalancerRegion, LoadbalancerStickySessions,
     };
+    use crate::Error::Client;
+    use crate::{build_firewall_args, update_firewall};
     use std::net::{IpAddr, Ipv4Addr};
     use std::rc::Rc;
 
@@ -1065,6 +1066,194 @@ mod fw_test {
                 "Failed to get correct return values from build_firewall_args (got {:?}",
                 x
             ),
+        };
+    }
+
+    #[test]
+    fn test_update_firewall() {
+        let fw_id = "foo".to_string();
+        let fw_name = "Foo".to_string();
+        let cur_inbound_rule = FirewallInboundRule {
+            protocol: "http".to_string(),
+            ports: "80".to_string(),
+            sources: FirewallRuleTarget {
+                addresses: None,
+                droplet_ids: None,
+                load_balancer_uids: None,
+                kubernetes_ids: None,
+                tags: None,
+            },
+        };
+        let new_inbound_rule = FirewallInboundRule {
+            protocol: "http".to_string(),
+            ports: "80".to_string(),
+            sources: FirewallRuleTarget {
+                addresses: Some(vec!["1.1.1.1".to_string()]),
+                droplet_ids: None,
+                load_balancer_uids: None,
+                kubernetes_ids: None,
+                tags: None,
+            },
+        };
+        let firewall = Firewall {
+            id: fw_id.clone(),
+            status: "".to_string(),
+            created_at: "".to_string(),
+            pending_changes: vec![],
+            name: fw_name.clone(),
+            droplet_ids: None,
+            tags: None,
+            inbound_rules: Some(vec![cur_inbound_rule.clone()]),
+            outbound_rules: None,
+        };
+        let fw_client = TestFwClientImpl {
+            expected_get_firewall_name: Some(fw_name.clone()),
+            firewall: Some(firewall.clone()),
+            expected_delete_firewall_id: Some(fw_id.clone()),
+            expected_delete_inbound_rules: Some(vec![cur_inbound_rule.clone()]),
+            expected_delete_outbound_rules: None,
+            delete_rule_is_ok: true,
+            expected_add_firewall_id: Some(fw_id.clone()),
+            expected_add_inbound_rules: Some(vec![new_inbound_rule.clone()]),
+            expected_add_outbound_rules: None,
+            add_rule_is_ok: true,
+        };
+
+        match update_firewall(
+            Rc::new(fw_client),
+            firewall.clone(),
+            Some((cur_inbound_rule, new_inbound_rule)),
+            None,
+            false,
+        ) {
+            Ok(new_fw) => assert_eq!(new_fw, firewall),
+            Err(e) => panic!("Unexpected error while updating firewall: {:?}", e),
+        };
+    }
+
+    #[test]
+    fn test_update_firewall_delete_fail() {
+        let fw_id = "foo".to_string();
+        let fw_name = "Foo".to_string();
+        let cur_inbound_rule = FirewallInboundRule {
+            protocol: "http".to_string(),
+            ports: "80".to_string(),
+            sources: FirewallRuleTarget {
+                addresses: None,
+                droplet_ids: None,
+                load_balancer_uids: None,
+                kubernetes_ids: None,
+                tags: None,
+            },
+        };
+        let new_inbound_rule = FirewallInboundRule {
+            protocol: "http".to_string(),
+            ports: "80".to_string(),
+            sources: FirewallRuleTarget {
+                addresses: Some(vec!["1.1.1.1".to_string()]),
+                droplet_ids: None,
+                load_balancer_uids: None,
+                kubernetes_ids: None,
+                tags: None,
+            },
+        };
+        let firewall = Firewall {
+            id: fw_id.clone(),
+            status: "".to_string(),
+            created_at: "".to_string(),
+            pending_changes: vec![],
+            name: fw_name.clone(),
+            droplet_ids: None,
+            tags: None,
+            inbound_rules: Some(vec![cur_inbound_rule.clone()]),
+            outbound_rules: None,
+        };
+        let fw_client = TestFwClientImpl {
+            expected_get_firewall_name: Some(fw_name.clone()),
+            firewall: Some(firewall.clone()),
+            expected_delete_firewall_id: Some(fw_id.clone()),
+            expected_delete_inbound_rules: Some(vec![cur_inbound_rule.clone()]),
+            expected_delete_outbound_rules: None,
+            delete_rule_is_ok: false,
+            expected_add_firewall_id: Some(fw_id.clone()),
+            expected_add_inbound_rules: Some(vec![new_inbound_rule.clone()]),
+            expected_add_outbound_rules: None,
+            add_rule_is_ok: true,
+        };
+
+        match update_firewall(
+            Rc::new(fw_client),
+            firewall.clone(),
+            Some((cur_inbound_rule, new_inbound_rule)),
+            None,
+            false,
+        ) {
+            Ok(_) => panic!("Expected delete call to fail!"),
+            Err(Client(Error::DeleteFirewallRule(_))) => (),
+            Err(e) => panic!("Unexpected failure reason: {:?}", e),
+        };
+    }
+
+    #[test]
+    fn test_update_firewall_add_fail() {
+        let fw_id = "foo".to_string();
+        let fw_name = "Foo".to_string();
+        let cur_inbound_rule = FirewallInboundRule {
+            protocol: "http".to_string(),
+            ports: "80".to_string(),
+            sources: FirewallRuleTarget {
+                addresses: None,
+                droplet_ids: None,
+                load_balancer_uids: None,
+                kubernetes_ids: None,
+                tags: None,
+            },
+        };
+        let new_inbound_rule = FirewallInboundRule {
+            protocol: "http".to_string(),
+            ports: "80".to_string(),
+            sources: FirewallRuleTarget {
+                addresses: Some(vec!["1.1.1.1".to_string()]),
+                droplet_ids: None,
+                load_balancer_uids: None,
+                kubernetes_ids: None,
+                tags: None,
+            },
+        };
+        let firewall = Firewall {
+            id: fw_id.clone(),
+            status: "".to_string(),
+            created_at: "".to_string(),
+            pending_changes: vec![],
+            name: fw_name.clone(),
+            droplet_ids: None,
+            tags: None,
+            inbound_rules: Some(vec![cur_inbound_rule.clone()]),
+            outbound_rules: None,
+        };
+        let fw_client = TestFwClientImpl {
+            expected_get_firewall_name: Some(fw_name.clone()),
+            firewall: Some(firewall.clone()),
+            expected_delete_firewall_id: Some(fw_id.clone()),
+            expected_delete_inbound_rules: Some(vec![cur_inbound_rule.clone()]),
+            expected_delete_outbound_rules: None,
+            delete_rule_is_ok: true,
+            expected_add_firewall_id: Some(fw_id.clone()),
+            expected_add_inbound_rules: Some(vec![new_inbound_rule.clone()]),
+            expected_add_outbound_rules: None,
+            add_rule_is_ok: false,
+        };
+
+        match update_firewall(
+            Rc::new(fw_client),
+            firewall.clone(),
+            Some((cur_inbound_rule, new_inbound_rule)),
+            None,
+            false,
+        ) {
+            Ok(_) => panic!("Expected create/add call to fail!"),
+            Err(Client(Error::CreateFirewallRule(_))) => (),
+            Err(e) => panic!("Unexpected failure reason: {:?}", e),
         };
     }
 
