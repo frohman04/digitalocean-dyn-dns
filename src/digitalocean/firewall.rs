@@ -138,7 +138,7 @@ struct FirewallsResp {
     links: Links,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct Firewall {
     /// A unique ID that can be used to identify and reference a firewall.
@@ -165,7 +165,7 @@ pub struct Firewall {
     pub outbound_rules: Option<Vec<FirewallOutboundRule>>,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct FirewallPendingChange {
     pub droplet_id: u32,

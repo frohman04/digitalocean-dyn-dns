@@ -37,7 +37,7 @@ struct LoadbalancersResp {
     links: Links,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct Loadbalancer {
     /// A unique ID that can be used to identify and reference a load balancer.
@@ -113,7 +113,7 @@ pub struct Loadbalancer {
     pub tag: String,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct LoadbalancerForwardingRule {
     /// The protocol used for traffic to the load balancer. The possible values are: http, https,
@@ -138,7 +138,7 @@ pub struct LoadbalancerForwardingRule {
     pub tls_passthrough: bool,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct LoadbalancerHealthCheck {
     /// The protocol used for health checks sent to the backend Droplets. The possible values are
@@ -162,7 +162,7 @@ pub struct LoadbalancerHealthCheck {
     pub healthy_threshold: u8,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct LoadbalancerStickySessions {
     /// An attribute indicating how and if requests from a client will be persistently served by the
@@ -177,7 +177,7 @@ pub struct LoadbalancerStickySessions {
     pub cookie_ttl_seconds: Option<u32>,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct LoadbalancerFirewall {
     /// the rules for denying traffic to the load balancer (in the form 'ip:1.2.3.4' or
@@ -188,7 +188,7 @@ pub struct LoadbalancerFirewall {
     pub allow: Vec<String>,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct LoadbalancerRegion {
     /// The display name of the region. This will be a full name that is used in the control panel

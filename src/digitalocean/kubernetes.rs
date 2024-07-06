@@ -38,7 +38,7 @@ struct KubernetesClusterResp {
     links: Links,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct KubernetesCluster {
     /// A unique ID that can be used to identify and reference a Kubernetes cluster.
@@ -95,7 +95,7 @@ pub struct KubernetesCluster {
     pub registry_enabled: bool,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct KubernetesClusterNodePool {
     /// The slug identifier for the type of Droplet used as workers in the node pool.
@@ -129,7 +129,7 @@ pub struct KubernetesClusterNodePool {
     pub nodes: Vec<KubernetesClusterNodePoolNode>,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct KubernetesClusterNodePoolTaint {
     /// An arbitrary string. The key and value fields of the taint object form a key-value pair. For
@@ -145,7 +145,7 @@ pub struct KubernetesClusterNodePoolTaint {
     pub effect: String,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct KubernetesClusterNodePoolNode {
     /// A unique ID that can be used to identify and reference the node.
@@ -165,7 +165,7 @@ pub struct KubernetesClusterNodePoolNode {
     pub updated_at: String,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct KubernetesClusterNodePoolNodeState {
     /// A string indicating the current status of the node.
@@ -173,7 +173,7 @@ pub struct KubernetesClusterNodePoolNodeState {
     pub state: String,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct KubernetesClusterMaintenancePolicy {
     /// The start time in UTC of the maintenance window policy in 24-hour clock format / HH:MM
@@ -186,7 +186,7 @@ pub struct KubernetesClusterMaintenancePolicy {
     pub day: String,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct KubernetesClusterStatus {
     /// A string indicating the current status of the cluster.

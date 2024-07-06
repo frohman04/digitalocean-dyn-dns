@@ -37,7 +37,7 @@ struct DropletsResp {
     links: Links,
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct Droplet {
     /// A unique identifier for each Droplet instance. This is automatically generated upon Droplet
@@ -95,7 +95,7 @@ pub struct Droplet {
     pub vpc_uuid: String,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct DropletKernel {
     /// A unique number used to identify and reference a specific kernel.
@@ -107,7 +107,7 @@ pub struct DropletKernel {
     pub version: String,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct DropletNextBackupWindow {
     /// A time value given in ISO8601 combined date and time format specifying the start of the
@@ -118,7 +118,7 @@ pub struct DropletNextBackupWindow {
     pub end: String,
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct DropletImage {
     /// A unique number that can be used to identify and reference a specific image.
@@ -169,7 +169,7 @@ pub struct DropletImage {
     pub error_message: Option<String>,
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct DropletSize {
     /// A human-readable string that is used to uniquely identify each size.
@@ -200,14 +200,14 @@ pub struct DropletSize {
     pub description: String,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct DropletNetworks {
     pub v4: Vec<DropletNetworkV4>,
     pub v6: Vec<DropletNetworkV6>,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct DropletNetworkV4 {
     /// The IP address of the IPv4 network interface.
@@ -224,7 +224,7 @@ pub struct DropletNetworkV4 {
     pub typ: String,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct DropletNetworkV6 {
     /// The IP address of the IPv6 network interface.
@@ -240,7 +240,7 @@ pub struct DropletNetworkV6 {
     pub typ: String,
 }
 
-#[derive(Deserialize, Debug, Eq, PartialEq)]
+#[derive(Deserialize, Debug, Eq, PartialEq, Clone)]
 #[allow(dead_code)]
 pub struct DropletRegion {
     /// The display name of the region. This will be a full name that is used in the control panel
