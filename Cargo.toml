@@ -19,4 +19,4 @@ nu-ansi-term = "~0.50.1"
 
 [dev-dependencies]
 approx = "~0.5.1"
-mockito = "~1.6.0"
+mockito = "~1.6.1"
