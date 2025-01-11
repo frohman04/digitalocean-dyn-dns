@@ -94,7 +94,7 @@ fn main() {
 
 #[cfg(target_os = "windows")]
 fn fix_ansi_term() -> bool {
-    nu_ansi_term::enable_ansi_support().map_or(false, |()| true)
+    nu_ansi_term::enable_ansi_support().is_ok_and(|()| true)
 }
 
 #[cfg(not(target_os = "windows"))]
