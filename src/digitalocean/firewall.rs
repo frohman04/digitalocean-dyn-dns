@@ -235,8 +235,8 @@ mod test {
     use mockito;
     use reqwest::StatusCode;
 
-    use crate::digitalocean::firewall::{Firewall, FirewallInboundRule, FirewallRuleTarget};
     use crate::digitalocean::DigitalOceanClient;
+    use crate::digitalocean::firewall::{Firewall, FirewallInboundRule, FirewallRuleTarget};
 
     fn get_firewall_1_json() -> serde_json::Value {
         json!({

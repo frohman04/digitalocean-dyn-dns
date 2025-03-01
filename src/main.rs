@@ -21,7 +21,7 @@ use std::hash::Hash;
 use std::net::IpAddr;
 use std::rc::Rc;
 
-use tracing::{info, Level};
+use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
 use crate::cli::{Direction, SubcmdArgs};
@@ -653,6 +653,7 @@ mod dns_test {
 
 #[cfg(test)]
 mod fw_test {
+    use crate::Error::Client;
     use crate::cli::Direction;
     use crate::digitalocean::droplet::{
         DigitalOceanDropletClient, Droplet, DropletImage, DropletNetworks, DropletRegion,
@@ -670,7 +671,6 @@ mod fw_test {
         DigitalOceanLoadbalancerClient, Loadbalancer, LoadbalancerFirewall,
         LoadbalancerHealthCheck, LoadbalancerRegion, LoadbalancerStickySessions,
     };
-    use crate::Error::Client;
     use crate::{build_firewall_args, update_firewall};
     use std::net::{IpAddr, Ipv4Addr};
     use std::rc::Rc;

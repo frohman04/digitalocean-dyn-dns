@@ -303,8 +303,8 @@ mod test {
 
     use mockito;
 
-    use crate::digitalocean::dns::{Domain, DomainRecord};
     use crate::digitalocean::DigitalOceanClient;
+    use crate::digitalocean::dns::{Domain, DomainRecord};
 
     #[test]
     fn test_get_domain_simple_found() {

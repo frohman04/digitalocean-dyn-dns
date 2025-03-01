@@ -1,8 +1,8 @@
 use crate::digitalocean::error::Error;
-use reqwest::blocking::{ClientBuilder, RequestBuilder};
 use reqwest::Method;
-use serde::de::DeserializeOwned;
+use reqwest::blocking::{ClientBuilder, RequestBuilder};
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use url::Url;
 
 #[derive(Clone)]

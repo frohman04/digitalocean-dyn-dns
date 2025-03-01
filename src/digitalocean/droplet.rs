@@ -259,11 +259,11 @@ pub struct DropletRegion {
 
 #[cfg(test)]
 mod test {
+    use crate::digitalocean::DigitalOceanClient;
     use crate::digitalocean::droplet::{
         Droplet, DropletImage, DropletNetworkV4, DropletNetworks, DropletNextBackupWindow,
         DropletRegion, DropletSize,
     };
-    use crate::digitalocean::DigitalOceanClient;
 
     fn get_droplet_1_json() -> serde_json::Value {
         json!({

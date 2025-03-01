@@ -207,11 +207,11 @@ pub struct LoadbalancerRegion {
 
 #[cfg(test)]
 mod test {
+    use crate::digitalocean::DigitalOceanClient;
     use crate::digitalocean::loadbalancer::{
         Loadbalancer, LoadbalancerFirewall, LoadbalancerForwardingRule, LoadbalancerHealthCheck,
         LoadbalancerRegion, LoadbalancerStickySessions,
     };
-    use crate::digitalocean::DigitalOceanClient;
 
     fn get_load_balancer_1_json() -> serde_json::Value {
         json!({

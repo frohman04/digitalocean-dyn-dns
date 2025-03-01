@@ -198,12 +198,12 @@ pub struct KubernetesClusterStatus {
 
 #[cfg(test)]
 mod test {
+    use crate::digitalocean::DigitalOceanClient;
     use crate::digitalocean::kubernetes::{
         KubernetesCluster, KubernetesClusterMaintenancePolicy, KubernetesClusterNodePool,
         KubernetesClusterNodePoolNode, KubernetesClusterNodePoolNodeState,
         KubernetesClusterNodePoolTaint, KubernetesClusterStatus,
     };
-    use crate::digitalocean::DigitalOceanClient;
     use std::collections::HashMap;
 
     fn get_cluster_1_json() -> serde_json::Value {
