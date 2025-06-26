@@ -231,7 +231,7 @@ impl Args {
             }),
             // these situations should be impossible, but Rust can't tell since the subcommand
             // matches are stringly-typed and it can't tell that we require a subcommand
-            Some((cmd, _)) => panic!("Unknown subcommand detected: {}", cmd),
+            Some((cmd, _)) => panic!("Unknown subcommand detected: {cmd}"),
             None => panic!("No subcommand specified"),
         };
 

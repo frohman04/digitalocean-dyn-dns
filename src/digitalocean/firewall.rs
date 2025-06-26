@@ -63,7 +63,7 @@ impl DigitalOceanFirewallClient for DigitalOceanFirewallClientImpl {
         } else {
             let url = self
                 .api
-                .get_url(format!("/v2/firewalls/{}/rules", id).as_str());
+                .get_url(format!("/v2/firewalls/{id}/rules").as_str());
 
             let resp = self
                 .api
@@ -78,8 +78,7 @@ impl DigitalOceanFirewallClient for DigitalOceanFirewallClientImpl {
                 code => {
                     let error = resp.json::<ErrorResponse>()?;
                     Err(Error::DeleteFirewallRule(format!(
-                        "Got unexpected HTTP error from API ({}): {:?}",
-                        code, error
+                        "Got unexpected HTTP error from API ({code}): {error:?}"
                     )))
                 }
             }
@@ -104,7 +103,7 @@ impl DigitalOceanFirewallClient for DigitalOceanFirewallClientImpl {
         } else {
             let url = self
                 .api
-                .get_url(format!("/v2/firewalls/{}/rules", id).as_str());
+                .get_url(format!("/v2/firewalls/{id}/rules").as_str());
 
             let resp = self
                 .api
@@ -119,8 +118,7 @@ impl DigitalOceanFirewallClient for DigitalOceanFirewallClientImpl {
                 code => {
                     let error = resp.json::<ErrorResponse>()?;
                     Err(Error::CreateFirewallRule(format!(
-                        "Got unexpected HTTP error from API ({}): {:?}",
-                        code, error
+                        "Got unexpected HTTP error from API ({code}): {error:?}"
                     )))
                 }
             }

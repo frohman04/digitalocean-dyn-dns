@@ -85,7 +85,7 @@ impl DigitalOceanDnsClient for DigitalOceanDnsClientImpl {
         self.api.get_object_by_name(
             record,
             self.api
-                .get_url(format!("/v2/domains/{}/records?type={}", domain, rtype).as_str()),
+                .get_url(format!("/v2/domains/{domain}/records?type={rtype}").as_str()),
             |r: DomainRecordsResp| r.domain_records,
             |r: &DomainRecordsResp| r.links.clone(),
             |t: &DomainRecord, name: &str| t.name == *name,
@@ -170,7 +170,7 @@ impl DigitalOceanDnsClient for DigitalOceanDnsClientImpl {
         } else {
             let url = self
                 .api
-                .get_url(format!("/v2/domains/{}/records", domain).as_str());
+                .get_url(format!("/v2/domains/{domain}/records").as_str());
             let resp = self
                 .api
                 .get_request_builder(Method::POST, url)

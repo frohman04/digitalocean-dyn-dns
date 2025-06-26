@@ -210,8 +210,7 @@ fn build_firewall_args(
                             .find(|x| x.ports == port && x.protocol == protocol)
                             .unwrap_or_else(|| {
                                 panic!(
-                                    "Unable to find firewall rule for port {} and protocol {}",
-                                    port, protocol
+                                    "Unable to find firewall rule for port {port} and protocol {protocol}"
                                 )
                             })
                             .clone(),
@@ -238,8 +237,7 @@ fn build_firewall_args(
                             .find(|x| x.ports == port && x.protocol == protocol)
                             .unwrap_or_else(|| {
                                 panic!(
-                                    "Unable to find firewall rule for port {} and protocol {}",
-                                    port, protocol
+                                    "Unable to find firewall rule for port {port} and protocol {protocol}"
                                 )
                             })
                             .clone(),
@@ -349,7 +347,7 @@ where
                 ns.into_iter()
                     .map(|name| match by_name.get(&name) {
                         Some(d) => extract_key(d),
-                        None => panic!("Unable to find object with name {}", name),
+                        None => panic!("Unable to find object with name {name}"),
                     })
                     .collect::<Vec<K>>()
             })
