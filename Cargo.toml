@@ -12,7 +12,7 @@ serde = { version = "~1.0", features = [ "derive" ] }
 serde_json = "~1.0.148"
 tracing = "~0.1.44"
 tracing-subscriber = "~0.3.22"
-url = "~2.5.7"
+url = "~2.5.8"
 
 [target.'cfg(windows)'.dependencies]
 nu-ansi-term = "~0.50.3"
