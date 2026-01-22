@@ -60,8 +60,10 @@ impl DigitalOceanApiClient {
 
             let links = link_extractor(&resp);
             objects.extend(value_extractor(resp).into_iter());
-            if links.pages.is_some() && links.pages.clone().unwrap().next.is_some() {
-                url = links.pages.unwrap().next.unwrap();
+            if let Some(pages) = links.pages {
+                if let Some(next) = pages.next {
+                    url = next;
+                }
             } else {
                 exit = true;
             }
