@@ -11,7 +11,7 @@ reqwest = { version = "~0.12", features = [ "rustls-tls", "blocking", "json" ], 
 serde = { version = "~1.0", features = [ "derive" ] }
 serde_json = "~1.0.149"
 tracing = "~0.1.44"
-tracing-subscriber = "~0.3.22"
+tracing-subscriber = "~0.3.23"
 url = "~2.5.8"
 
 [target.'cfg(windows)'.dependencies]
