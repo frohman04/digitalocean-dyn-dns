@@ -59,7 +59,7 @@ impl DigitalOceanApiClient {
                 .json::<R>()?;
 
             let links = link_extractor(&resp);
-            objects.extend(value_extractor(resp).into_iter());
+            objects.extend(value_extractor(resp));
             if let Some(pages) = links.pages {
                 if let Some(next) = pages.next {
                     url = next;
