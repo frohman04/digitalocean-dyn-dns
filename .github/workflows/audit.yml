@@ -12,6 +12,7 @@ jobs:
           toolchain: stable
           profile: minimal
           components: clippy
+      - uses: kunobi-ninja/kache-action@v1
       - uses: actions-rs/audit-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
